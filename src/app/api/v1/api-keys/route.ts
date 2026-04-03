@@ -1,9 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db";
 import { apiKeys, organizations } from "@/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
 import { generateApiKey } from "@/lib/api-keys/generate";
+
+const createKeySchema = z.object({
+  name: z.string().min(1).max(100).default("Default"),
+});
 
 export async function GET() {
   const { orgId } = await auth();
@@ -53,8 +58,22 @@ export async function POST(req: Request) {
     }
   }
 
-  const body = await req.json();
-  const name = body.name || "Default";
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const parsed = createKeySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid input", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  const { name } = parsed.data;
   const { rawKey, keyHash, keyPrefix } = generateApiKey();
 
   const [key] = await db

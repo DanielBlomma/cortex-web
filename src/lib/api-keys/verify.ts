@@ -3,7 +3,13 @@ import { apiKeys } from "@/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
 import { hashApiKey } from "./generate";
 
+const MAX_KEY_LENGTH = 100;
+
 export async function verifyApiKey(rawKey: string) {
+  if (!rawKey || rawKey.length > MAX_KEY_LENGTH || !rawKey.startsWith("ctx_")) {
+    return null;
+  }
+
   const hash = hashApiKey(rawKey);
 
   const [key] = await db
@@ -16,11 +22,12 @@ export async function verifyApiKey(rawKey: string) {
 
   if (key.expiresAt && key.expiresAt < new Date()) return null;
 
-  // Update last used timestamp (fire and forget)
   db.update(apiKeys)
     .set({ lastUsedAt: new Date() })
     .where(eq(apiKeys.id, key.id))
-    .then(() => {});
+    .catch(() => {
+      // Non-critical: lastUsedAt update failure should not break the request
+    });
 
   return key;
 }

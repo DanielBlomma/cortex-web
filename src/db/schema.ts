@@ -48,7 +48,7 @@ export const users = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("idx_users_email").on(t.email)]
+  (t) => [uniqueIndex("idx_users_email").on(t.email)]
 );
 
 export const memberships = pgTable(
@@ -130,9 +130,9 @@ export const telemetryEvents = pgTable(
     orgId: text("org_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    apiKeyId: uuid("api_key_id")
-      .notNull()
-      .references(() => apiKeys.id),
+    apiKeyId: uuid("api_key_id").references(() => apiKeys.id, {
+      onDelete: "set null",
+    }),
     periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
     periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
     searches: integer("searches").notNull().default(0),

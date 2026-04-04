@@ -83,7 +83,7 @@ export const apiKeys = pgTable(
     name: text("name").notNull().default("Default"),
     keyPrefix: text("key_prefix").notNull(),
     keyHash: text("key_hash").notNull(),
-    rawKey: text("raw_key"),
+    hmacSecret: text("hmac_secret"),
     scopes: text("scopes").array().notNull().default(["telemetry", "policy"]),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),

@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { apiKeys, organizations } from "@/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
 import { generateApiKey } from "@/lib/api-keys/generate";
+import { generateHmacSecret } from "@/lib/hmac";
 import { getOwnerId } from "@/lib/auth/owner";
 import { logAudit } from "@/lib/audit/log";
 import { applyRateLimit } from "@/lib/rate-limit";
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
 
   const { name, scopes } = parsed.data;
   const { rawKey, keyHash, keyPrefix } = generateApiKey();
+  const hmacSecret = generateHmacSecret();
 
   const [key] = await db
     .insert(apiKeys)
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
       name,
       keyPrefix,
       keyHash,
-      rawKey,
+      hmacSecret,
       scopes,
       createdBy: owner.userId,
     })
@@ -119,5 +121,5 @@ export async function POST(req: Request) {
     req,
   });
 
-  return NextResponse.json({ key: { ...key, rawKey } }, { status: 201 });
+  return NextResponse.json({ key: { ...key, rawKey, hmacSecret } }, { status: 201 });
 }

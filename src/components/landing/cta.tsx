@@ -40,7 +40,7 @@ export function CTA() {
             Start Free Trial
           </Link>
           <a
-            href="https://github.com/DanielBlomma/cortex-web"
+            href="https://github.com/DanielBlomma/cortex"
             target="_blank"
             rel="noopener noreferrer"
             className="px-6 py-3 rounded-full border border-zinc-700 text-zinc-300 hover:border-zinc-500 transition-colors text-sm font-medium"

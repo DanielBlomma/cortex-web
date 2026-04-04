@@ -98,6 +98,7 @@ export async function GET(req: Request) {
       resultsReturned,
       tokensSaved,
       tokensTotal,
+      tokensReported: reportedTotal > 0,
       eventCount: Number(totals?.eventCount ?? 0),
       activeInstances: Number(totals?.distinctInstances ?? 0),
     },

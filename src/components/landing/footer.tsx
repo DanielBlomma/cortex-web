@@ -13,7 +13,7 @@ export function Footer() {
 
         <div className="flex items-center gap-6 text-sm text-zinc-500">
           <a
-            href="https://github.com/DanielBlomma/cortex-web"
+            href="https://github.com/DanielBlomma/cortex"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-white transition-colors"

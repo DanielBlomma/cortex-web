@@ -14,7 +14,7 @@ const plans = [
     description:
       "Open source, MIT licensed. Run Cortex locally with no cloud dependency.",
     cta: "Get Started",
-    ctaHref: "https://github.com/DanielBlomma/cortex-web",
+    ctaHref: "https://github.com/DanielBlomma/cortex",
     ctaExternal: true,
     highlighted: false,
     features: [

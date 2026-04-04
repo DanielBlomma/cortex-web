@@ -21,6 +21,7 @@ type Totals = {
   searches: number;
   tokensSaved: number;
   tokensTotal: number;
+  tokensReported: boolean;
   eventCount: number;
   activeInstances: number;
 };
@@ -144,18 +145,75 @@ export default function DashboardPage() {
         <Card className="bg-white/[0.02] border-white/5">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-zinc-400">
-              Tokens Saved
+              Token Efficiency
             </CardTitle>
             <Zap className="h-4 w-4 text-emerald-500/50" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-400">
-              {loading
-                ? "..."
-                : hasData
-                  ? formatNumber(totals.tokensSaved)
-                  : "—"}
-            </div>
+            {loading ? (
+              <div className="text-2xl font-bold text-white">...</div>
+            ) : hasData && totals.tokensSaved > 0 ? (
+              totals.tokensReported && totals.tokensTotal > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold text-emerald-400">
+                      {Math.round(
+                        totals.tokensTotal /
+                          Math.max(
+                            totals.tokensTotal - totals.tokensSaved,
+                            1
+                          )
+                      )}
+                      x
+                    </span>
+                    <span className="text-xs text-zinc-500">reduction</span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Raw dump:</span>
+                      <span className="text-zinc-300">
+                        ~{formatNumber(totals.tokensTotal)} tokens
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Cortex search:</span>
+                      <span className="text-emerald-400">
+                        ~
+                        {formatNumber(
+                          totals.tokensTotal - totals.tokensSaved
+                        )}{" "}
+                        tokens
+                      </span>
+                    </div>
+                  </div>
+                  <div className="h-2 rounded-full bg-white/5 overflow-hidden flex">
+                    <div
+                      className="h-full rounded-full bg-emerald-500"
+                      style={{
+                        width: `${Math.round((totals.tokensSaved / totals.tokensTotal) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-emerald-400 text-right">
+                    {Math.round(
+                      (totals.tokensSaved / totals.tokensTotal) * 100
+                    )}
+                    % less tokens
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="text-2xl font-bold text-emerald-400">
+                    ~{formatNumber(totals.tokensSaved)}
+                  </div>
+                  <p className="text-xs text-zinc-500">
+                    tokens saved total
+                  </p>
+                </div>
+              )
+            ) : (
+              <div className="text-2xl font-bold text-white">—</div>
+            )}
           </CardContent>
         </Card>
 
@@ -351,33 +409,57 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {telemetry?.versions && telemetry.versions.length > 0 ? (
-              <div className="space-y-3">
-                {telemetry.versions.map((v) => (
-                  <div
-                    key={v.version}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-mono text-white">
-                        {v.version}
-                      </span>
-                      <span className="text-xs text-zinc-600">
-                        {v.instances} {v.instances === 1 ? "instance" : "instances"}
-                      </span>
-                    </div>
-                    <span className="text-xs text-zinc-600">
-                      {timeAgo(v.lastSeen)}
-                    </span>
+            {(() => {
+              const known = telemetry?.versions?.filter(
+                (v) => v.version !== "unknown"
+              );
+              if (known && known.length > 0) {
+                return (
+                  <div className="space-y-3">
+                    {known.map((v) => (
+                      <div
+                        key={v.version}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-mono text-white">
+                            v{v.version}
+                          </span>
+                          <span className="text-xs text-zinc-600">
+                            {v.instances}{" "}
+                            {v.instances === 1 ? "instance" : "instances"}
+                          </span>
+                        </div>
+                        <span className="text-xs text-zinc-600">
+                          {timeAgo(v.lastSeen)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-600">
-                No version data yet. Enterprise instances report their version
-                via telemetry.
-              </p>
-            )}
+                );
+              }
+              const total = telemetry?.totals?.activeInstances ?? 0;
+              return (
+                <div className="space-y-2">
+                  {total > 0 ? (
+                    <>
+                      <p className="text-sm text-zinc-400">
+                        {total} active{" "}
+                        {total === 1 ? "instance" : "instances"}
+                      </p>
+                      <p className="text-xs text-zinc-600">
+                        Update cortex-enterprise to v0.2+ to report version
+                        info.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-zinc-600">
+                      No instances connected yet.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 
@@ -482,8 +564,8 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Token savings bar */}
-      {hasData && totals.tokensSaved > 0 && totals.tokensTotal > 0 && (
+      {/* Token savings bar — only show when we have real reported data */}
+      {hasData && totals.tokensReported && totals.tokensSaved > 0 && totals.tokensTotal > 0 && (
         <Card className="bg-white/[0.02] border-white/5">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between mb-3">

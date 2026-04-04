@@ -11,15 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { isPredefinedRule } from "@/lib/policies/predefined-rules";
-
-type Policy = {
-  id: string;
-  ruleId: string;
-  description: string;
-  priority: number;
-  scope: string;
-  enforce: boolean;
-};
+import type { Policy } from "@/lib/types/policy";
 
 export default function EditPolicyPage() {
   const params = useParams();
@@ -35,40 +27,51 @@ export default function EditPolicyPage() {
   const [enforce, setEnforce] = useState(true);
 
   const fetchPolicy = useCallback(async () => {
-    const res = await fetch(`/api/v1/policies/${params.id}`);
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/v1/policies/${params.id}`);
+      if (!res.ok) {
+        const msg = res.status === 404 ? null : "Failed to load policy";
+        setError(msg);
+        return;
+      }
+      const data = await res.json();
+      setPolicy(data.policy);
+      setDescription(data.policy.description);
+      setPriority(data.policy.priority);
+      setScope(data.policy.scope);
+      setEnforce(data.policy.enforce);
+    } catch {
+      setError("Failed to load policy");
+    } finally {
       setLoading(false);
-      return;
     }
-    const data = await res.json();
-    setPolicy(data.policy);
-    setDescription(data.policy.description);
-    setPriority(data.policy.priority);
-    setScope(data.policy.scope);
-    setEnforce(data.policy.enforce);
-    setLoading(false);
   }, [params.id]);
 
   useEffect(() => {
-    fetchPolicy();
+    void fetchPolicy();
   }, [fetchPolicy]);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
-    const res = await fetch(`/api/v1/policies/${params.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ description, priority, scope, enforce }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to save");
+    try {
+      const res = await fetch(`/api/v1/policies/${params.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description, priority, scope, enforce }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to save");
+        return;
+      }
+      router.push("/dashboard/policies");
+    } catch {
+      setError("Network error — please try again");
+    } finally {
       setSaving(false);
-      return;
     }
-    router.push("/dashboard/policies");
   };
 
   if (loading) {

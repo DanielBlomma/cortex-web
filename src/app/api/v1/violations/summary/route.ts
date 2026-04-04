@@ -63,6 +63,7 @@ export async function GET(req: Request) {
   const recent = await db
     .select({
       id: policyViolations.id,
+      repo: policyViolations.repo,
       ruleId: policyViolations.ruleId,
       severity: policyViolations.severity,
       message: policyViolations.message,

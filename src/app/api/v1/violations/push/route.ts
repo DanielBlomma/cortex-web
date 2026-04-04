@@ -42,9 +42,12 @@ export async function POST(req: Request) {
     );
   }
 
+  const repo = parsed.data.repo ?? null;
+
   const rows = parsed.data.violations.map((v) => ({
     orgId: key.orgId,
     apiKeyId: key.id,
+    repo,
     ruleId: v.rule_id,
     severity: v.severity,
     message: v.message,

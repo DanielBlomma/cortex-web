@@ -83,6 +83,7 @@ export const apiKeys = pgTable(
     name: text("name").notNull().default("Default"),
     keyPrefix: text("key_prefix").notNull(),
     keyHash: text("key_hash").notNull(),
+    rawKey: text("raw_key"),
     scopes: text("scopes").array().notNull().default(["telemetry", "policy"]),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
@@ -145,6 +146,9 @@ export const telemetryEvents = pgTable(
     estimatedTokensSaved: integer("estimated_tokens_saved")
       .notNull()
       .default(0),
+    estimatedTokensTotal: integer("estimated_tokens_total")
+      .notNull()
+      .default(0),
     receivedAt: timestamp("received_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -201,6 +205,58 @@ export const policies = pgTable(
   (t) => [
     uniqueIndex("idx_policies_org_rule").on(t.orgId, t.ruleId),
     index("idx_policies_org").on(t.orgId),
+  ]
+);
+
+export const auditLog = pgTable(
+  "audit_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    userId: text("user_id"),
+    action: text("action").notNull(),
+    resourceType: text("resource_type").notNull(),
+    resourceId: text("resource_id"),
+    description: text("description").notNull().default(""),
+    metadata: text("metadata"),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_audit_log_org_time").on(t.orgId, t.createdAt),
+    index("idx_audit_log_resource").on(t.orgId, t.resourceType, t.resourceId),
+  ]
+);
+
+export const policyViolations = pgTable(
+  "policy_violations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    apiKeyId: uuid("api_key_id").references(() => apiKeys.id, {
+      onDelete: "set null",
+    }),
+    repo: text("repo"),
+    ruleId: text("rule_id").notNull(),
+    severity: text("severity").notNull().default("warning"),
+    message: text("message").notNull().default(""),
+    filePath: text("file_path"),
+    metadata: text("metadata"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_violations_org_time").on(t.orgId, t.occurredAt),
+    index("idx_violations_org_rule").on(t.orgId, t.ruleId),
   ]
 );
 

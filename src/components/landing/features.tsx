@@ -2,119 +2,92 @@
 
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
-import {
-  KeyRound,
-  BarChart3,
-  ShieldCheck,
-  Users,
-  ScrollText,
-  Globe,
-} from "lucide-react";
 
 const features = [
   {
-    icon: ShieldCheck,
-    title: "Policy Management",
+    title: "Rules that apply everywhere",
     description:
-      "Write organization-wide rules that automatically sync to every developer. AI assistants get governed context without devs changing their workflow.",
+      "Write a rule once. It applies to every developer, every repo, every AI tool — automatically. No need to trust that each team configured things correctly.",
   },
   {
-    icon: BarChart3,
-    title: "Usage Analytics",
+    title: "Prove the ROI",
     description:
       "See searches, tokens saved, and active instances across all teams. The data you need to justify AI investment to leadership.",
   },
   {
-    icon: KeyRound,
-    title: "License Management",
+    title: "Audit-ready from day one",
     description:
-      "Generate Ed25519-signed licenses for Connected and Air-Gapped deployments. Track status, expiry, and renewals from one place.",
+      "Every AI interaction is logged. When an auditor asks how you govern your AI tools, you have a complete, searchable answer.",
   },
   {
-    icon: ScrollText,
-    title: "Audit Trail",
+    title: "Your code stays put",
     description:
-      "Every AI interaction is logged. Exportable reports for SOC2, ISO 27001, and internal compliance reviews.",
+      "The cloud only sees numbers and rule names. Never source code, never file contents, never what the developer searched for.",
   },
   {
-    icon: Users,
-    title: "Team Management",
+    title: "Zero friction for developers",
     description:
-      "Role-based access control with admin, developer, and readonly roles. SSO integration with your company identity provider.",
+      "They install Cortex once. Rules sync automatically. AI assistants get better context. No new workflows, no extra steps.",
   },
   {
-    icon: Globe,
-    title: "Air-Gapped Support",
+    title: "Air-gapped ready",
     description:
-      "Generate offline license files for restricted environments. Full lifecycle tracking without any network requirement.",
+      "Complete offline deployment for restricted environments. Zero network traffic. Built-in AI model. Everything in one package.",
   },
 ];
-
-function FeatureCard({
-  feature,
-  index,
-}: {
-  feature: (typeof features)[0];
-  index: number;
-}) {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
-
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 30 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-      transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="group relative rounded-xl border border-white/5 bg-white/[0.02] p-6 hover:border-white/10 transition-all duration-300"
-    >
-      {/* Gradient border on hover */}
-      <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-blue-500/10 to-violet-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
-
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/20 to-violet-500/20 border border-white/5 mb-4">
-        <feature.icon className="h-5 w-5 text-blue-400" />
-      </div>
-
-      <h3 className="text-base font-semibold text-white mb-2">
-        {feature.title}
-      </h3>
-      <p className="text-sm text-zinc-400 leading-relaxed">
-        {feature.description}
-      </p>
-    </motion.div>
-  );
-}
 
 export function Features() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
 
   return (
-    <section id="features" className="py-32 px-6" ref={ref}>
-      <div className="max-w-6xl mx-auto">
+    <section
+      id="features"
+      className="relative py-40 px-6 overflow-hidden"
+      ref={ref}
+      style={{
+        backgroundImage: "url(/images/gov.jpg)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <div className="absolute inset-0 bg-black/75" />
+      <div className="relative max-w-5xl mx-auto">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          initial={{ opacity: 0 }}
+          animate={isInView ? { opacity: 1 } : { opacity: 0 }}
           transition={{ duration: 0.5 }}
-          className="text-center mb-16"
+          className="text-center mb-20"
         >
-          <span className="text-xs font-mono text-blue-400 tracking-widest uppercase mb-4 block">
+          <p className="text-xs uppercase tracking-widest text-zinc-500 mb-4">
             Features
-          </span>
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-            Everything you need to govern AI at scale
+          </p>
+          <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-4">
+            Central control, local execution
           </h2>
           <p className="text-zinc-400 max-w-xl mx-auto">
-            Central control, local execution. Your developers use AI normally —
-            Cortex handles governance in the background.
+            Your developers use AI normally. Cortex handles governance in the
+            background.
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {features.map((feature, i) => (
-            <FeatureCard key={feature.title} feature={feature} index={i} />
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-zinc-800 rounded-lg overflow-hidden border border-zinc-800"
+        >
+          {features.map((feature) => (
+            <div key={feature.title} className="bg-zinc-950 p-8">
+              <h3 className="text-base font-semibold text-white mb-3">
+                {feature.title}
+              </h3>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                {feature.description}
+              </p>
+            </div>
           ))}
-        </div>
+        </motion.div>
       </div>
     </section>
   );

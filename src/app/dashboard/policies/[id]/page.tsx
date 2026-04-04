@@ -1,15 +1,172 @@
-export default function PolicyDetailPage() {
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import { isPredefinedRule } from "@/lib/policies/predefined-rules";
+
+type Policy = {
+  id: string;
+  ruleId: string;
+  description: string;
+  priority: number;
+  scope: string;
+  enforce: boolean;
+};
+
+export default function EditPolicyPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [policy, setPolicy] = useState<Policy | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState(50);
+  const [scope, setScope] = useState("global");
+  const [enforce, setEnforce] = useState(true);
+
+  const fetchPolicy = useCallback(async () => {
+    const res = await fetch(`/api/v1/policies/${params.id}`);
+    if (!res.ok) {
+      setLoading(false);
+      return;
+    }
+    const data = await res.json();
+    setPolicy(data.policy);
+    setDescription(data.policy.description);
+    setPriority(data.policy.priority);
+    setScope(data.policy.scope);
+    setEnforce(data.policy.enforce);
+    setLoading(false);
+  }, [params.id]);
+
+  useEffect(() => {
+    fetchPolicy();
+  }, [fetchPolicy]);
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    const res = await fetch(`/api/v1/policies/${params.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ description, priority, scope, enforce }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      setError(data.error || "Failed to save");
+      setSaving(false);
+      return;
+    }
+    router.push("/dashboard/policies");
+  };
+
+  if (loading) {
+    return <p className="text-zinc-500 text-sm p-6">Loading...</p>;
+  }
+
+  if (!policy) {
+    return <p className="text-zinc-500 text-sm p-6">Policy not found.</p>;
+  }
+
   return (
     <div className="space-y-6">
       <div>
+        <Link
+          href="/dashboard/policies"
+          className="text-sm text-zinc-500 hover:text-white flex items-center gap-1 mb-4"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Policies
+        </Link>
         <h1 className="text-2xl font-bold text-white">Edit Policy</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Update this organization policy.
-        </p>
+        <div className="flex items-center gap-2 mt-2">
+          <code className="text-sm font-mono text-zinc-400 bg-white/5 px-2 py-1 rounded">
+            {policy.ruleId}
+          </code>
+          {isPredefinedRule(policy.ruleId) && (
+            <Badge variant="secondary" className="text-xs">
+              Predefined
+            </Badge>
+          )}
+        </div>
       </div>
-      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-12 text-center">
-        <p className="text-zinc-500">Policy editor coming soon.</p>
-      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
+      <Card className="bg-white/[0.02] border-white/5">
+        <CardContent className="pt-6">
+          <form onSubmit={save} className="space-y-4">
+            <div>
+              <Label className="text-zinc-300">Description</Label>
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="bg-black/30 border-white/10 mt-1"
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-zinc-300">Priority (0-100)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={priority}
+                  onChange={(e) => setPriority(Number(e.target.value))}
+                  className="bg-black/30 border-white/10 mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-zinc-300">Scope</Label>
+                <Input
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value)}
+                  className="bg-black/30 border-white/10 mt-1"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setEnforce(!enforce)}
+                className="cursor-pointer"
+              >
+                <Badge variant={enforce ? "default" : "outline"}>
+                  {enforce ? "Enforced" : "Disabled"}
+                </Badge>
+              </button>
+              <span className="text-xs text-zinc-500">
+                Click to toggle enforcement
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </Button>
+              <Link href="/dashboard/policies">
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </Link>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

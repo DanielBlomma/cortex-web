@@ -1,27 +1,35 @@
-import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { policies } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { createPolicySchema } from "@/lib/validators/policy";
+import { getOwnerId } from "@/lib/auth/owner";
+import { logAudit } from "@/lib/audit/log";
+import { applyRateLimit } from "@/lib/rate-limit";
 
-export async function GET() {
-  const { orgId } = await auth();
-  if (!orgId)
+export async function GET(req: Request) {
+  const rl = applyRateLimit(req, 30);
+  if (rl) return rl;
+
+  const owner = await getOwnerId();
+  if (!owner)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const rows = await db
     .select()
     .from(policies)
-    .where(eq(policies.orgId, orgId))
+    .where(eq(policies.orgId, owner.ownerId))
     .orderBy(policies.priority);
 
   return NextResponse.json({ policies: rows });
 }
 
 export async function POST(req: Request) {
-  const { orgId, userId } = await auth();
-  if (!orgId)
+  const rl = applyRateLimit(req, 30);
+  if (rl) return rl;
+
+  const owner = await getOwnerId();
+  if (!owner)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   let body: unknown;
@@ -43,11 +51,22 @@ export async function POST(req: Request) {
     const [policy] = await db
       .insert(policies)
       .values({
-        orgId,
+        orgId: owner.ownerId,
         ...parsed.data,
-        createdBy: userId,
+        createdBy: owner.userId,
       })
       .returning();
+
+    logAudit({
+      orgId: owner.ownerId,
+      userId: owner.userId,
+      action: "create",
+      resourceType: "policy",
+      resourceId: policy.id,
+      description: `Created policy ${parsed.data.ruleId}`,
+      metadata: { ruleId: parsed.data.ruleId, enforce: parsed.data.enforce },
+      req,
+    });
 
     return NextResponse.json({ policy }, { status: 201 });
   } catch (err: unknown) {
@@ -61,6 +80,7 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
-    throw err;
+    console.error("Policy creation failed:", err instanceof Error ? err.message : "Unknown error");
+    return NextResponse.json({ error: "Failed to create policy" }, { status: 500 });
   }
 }

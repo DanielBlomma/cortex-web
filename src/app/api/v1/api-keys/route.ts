@@ -1,18 +1,29 @@
-import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db";
 import { apiKeys, organizations } from "@/db/schema";
 import { eq, isNull, and } from "drizzle-orm";
 import { generateApiKey } from "@/lib/api-keys/generate";
+import { getOwnerId } from "@/lib/auth/owner";
+import { logAudit } from "@/lib/audit/log";
+import { applyRateLimit } from "@/lib/rate-limit";
+
+const AVAILABLE_SCOPES = ["telemetry", "policy", "audit-log"] as const;
 
 const createKeySchema = z.object({
   name: z.string().min(1).max(100).default("Default"),
+  scopes: z
+    .array(z.enum(AVAILABLE_SCOPES))
+    .min(1, "Select at least one scope")
+    .default(["telemetry", "policy"]),
 });
 
-export async function GET() {
-  const { orgId } = await auth();
-  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(req: Request) {
+  const rl = applyRateLimit(req, 30);
+  if (rl) return rl;
+
+  const owner = await getOwnerId();
+  if (!owner) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const keys = await db
     .select({
@@ -24,27 +35,30 @@ export async function GET() {
       createdAt: apiKeys.createdAt,
     })
     .from(apiKeys)
-    .where(and(eq(apiKeys.orgId, orgId), isNull(apiKeys.revokedAt)))
+    .where(and(eq(apiKeys.orgId, owner.ownerId), isNull(apiKeys.revokedAt)))
     .orderBy(apiKeys.createdAt);
 
   return NextResponse.json({ keys });
 }
 
 export async function POST(req: Request) {
-  const { orgId, userId } = await auth();
-  if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const rl = applyRateLimit(req, 10);
+  if (rl) return rl;
+
+  const owner = await getOwnerId();
+  if (!owner) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Check plan limits
   const [org] = await db
     .select({ maxApiKeys: organizations.maxApiKeys })
     .from(organizations)
-    .where(eq(organizations.id, orgId));
+    .where(eq(organizations.id, owner.ownerId));
 
   if (org) {
     const activeKeys = await db
       .select({ id: apiKeys.id })
       .from(apiKeys)
-      .where(and(eq(apiKeys.orgId, orgId), isNull(apiKeys.revokedAt)));
+      .where(and(eq(apiKeys.orgId, owner.ownerId), isNull(apiKeys.revokedAt)));
 
     if (activeKeys.length >= org.maxApiKeys) {
       return NextResponse.json(
@@ -73,17 +87,19 @@ export async function POST(req: Request) {
     );
   }
 
-  const { name } = parsed.data;
+  const { name, scopes } = parsed.data;
   const { rawKey, keyHash, keyPrefix } = generateApiKey();
 
   const [key] = await db
     .insert(apiKeys)
     .values({
-      orgId,
+      orgId: owner.ownerId,
       name,
       keyPrefix,
       keyHash,
-      createdBy: userId,
+      rawKey,
+      scopes,
+      createdBy: owner.userId,
     })
     .returning({
       id: apiKeys.id,
@@ -91,6 +107,17 @@ export async function POST(req: Request) {
       keyPrefix: apiKeys.keyPrefix,
       createdAt: apiKeys.createdAt,
     });
+
+  logAudit({
+    orgId: owner.ownerId,
+    userId: owner.userId,
+    action: "create",
+    resourceType: "api_key",
+    resourceId: key.id,
+    description: `Created API key "${name}"`,
+    metadata: { scopes },
+    req,
+  });
 
   return NextResponse.json({ key: { ...key, rawKey } }, { status: 201 });
 }

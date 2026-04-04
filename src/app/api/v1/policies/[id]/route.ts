@@ -1,19 +1,22 @@
-import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { policies } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { updatePolicySchema } from "@/lib/validators/policy";
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { UUID_RE } from "@/lib/validators/uuid";
+import { getOwnerId } from "@/lib/auth/owner";
+import { logAudit } from "@/lib/audit/log";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { orgId } = await auth();
-  if (!orgId)
+  const rl = applyRateLimit(_req, 30);
+  if (rl) return rl;
+
+  const owner = await getOwnerId();
+  if (!owner)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
@@ -23,7 +26,7 @@ export async function GET(
   const [policy] = await db
     .select()
     .from(policies)
-    .where(and(eq(policies.id, id), eq(policies.orgId, orgId)));
+    .where(and(eq(policies.id, id), eq(policies.orgId, owner.ownerId)));
 
   if (!policy)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -35,8 +38,11 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { orgId } = await auth();
-  if (!orgId)
+  const rl = applyRateLimit(req, 30);
+  if (rl) return rl;
+
+  const owner = await getOwnerId();
+  if (!owner)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
@@ -61,11 +67,22 @@ export async function PUT(
   const [policy] = await db
     .update(policies)
     .set({ ...parsed.data, updatedAt: new Date() })
-    .where(and(eq(policies.id, id), eq(policies.orgId, orgId)))
+    .where(and(eq(policies.id, id), eq(policies.orgId, owner.ownerId)))
     .returning();
 
   if (!policy)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  logAudit({
+    orgId: owner.ownerId,
+    userId: owner.userId,
+    action: "update",
+    resourceType: "policy",
+    resourceId: id,
+    description: `Updated policy ${policy.ruleId}`,
+    metadata: parsed.data,
+    req,
+  });
 
   return NextResponse.json({ policy });
 }
@@ -74,8 +91,11 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { orgId } = await auth();
-  if (!orgId)
+  const rl = applyRateLimit(_req, 20);
+  if (rl) return rl;
+
+  const owner = await getOwnerId();
+  if (!owner)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
@@ -84,11 +104,21 @@ export async function DELETE(
 
   const [policy] = await db
     .delete(policies)
-    .where(and(eq(policies.id, id), eq(policies.orgId, orgId)))
-    .returning({ id: policies.id });
+    .where(and(eq(policies.id, id), eq(policies.orgId, owner.ownerId)))
+    .returning({ id: policies.id, ruleId: policies.ruleId });
 
   if (!policy)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  logAudit({
+    orgId: owner.ownerId,
+    userId: owner.userId,
+    action: "delete",
+    resourceType: "policy",
+    resourceId: id,
+    description: `Deleted policy ${policy.ruleId}`,
+    req: _req,
+  });
 
   return NextResponse.json({ ok: true });
 }

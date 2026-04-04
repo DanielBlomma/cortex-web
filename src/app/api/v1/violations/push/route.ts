@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { telemetryEvents } from "@/db/schema";
+import { policyViolations } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
-import { telemetryPushSchema } from "@/lib/validators/telemetry";
+import { violationPushSchema } from "@/lib/validators/violation";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
@@ -20,9 +20,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
   }
 
-  if (!key.scopes?.includes("telemetry")) {
+  if (!key.scopes?.includes("policy")) {
     return NextResponse.json(
-      { error: "Key does not have telemetry scope" },
+      { error: "Key does not have policy scope" },
       { status: 403 }
     );
   }
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const parsed = telemetryPushSchema.safeParse(body);
+  const parsed = violationPushSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid payload", details: parsed.error.flatten() },
@@ -42,21 +42,26 @@ export async function POST(req: Request) {
     );
   }
 
-  const data = parsed.data;
-
-  await db.insert(telemetryEvents).values({
+  const rows = parsed.data.violations.map((v) => ({
     orgId: key.orgId,
     apiKeyId: key.id,
-    periodStart: new Date(data.period_start),
-    periodEnd: new Date(data.period_end),
-    searches: data.searches,
-    relatedLookups: data.related_lookups,
-    ruleLookups: data.rule_lookups,
-    reloads: data.reloads,
-    totalResultsReturned: data.total_results_returned,
-    estimatedTokensSaved: data.estimated_tokens_saved,
-    estimatedTokensTotal: data.estimated_tokens_total ?? 0,
-  });
+    ruleId: v.rule_id,
+    severity: v.severity,
+    message: v.message,
+    filePath: v.file_path ?? null,
+    metadata: v.metadata ?? null,
+    occurredAt: new Date(v.occurred_at),
+  }));
 
-  return NextResponse.json({ ok: true });
+  try {
+    await db.insert(policyViolations).values(rows);
+  } catch (err) {
+    console.error("Violation insert failed:", err);
+    return NextResponse.json(
+      { error: "Failed to store violations" },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ ok: true, count: rows.length });
 }

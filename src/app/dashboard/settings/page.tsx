@@ -1,3 +1,8 @@
+"use client";
+
+import { OrganizationProfile } from "@clerk/nextjs";
+import { dark } from "@clerk/themes";
+
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
@@ -7,9 +12,16 @@ export default function SettingsPage() {
           Organization settings and member management.
         </p>
       </div>
-      <div className="rounded-xl border border-white/5 bg-white/[0.02] p-12 text-center">
-        <p className="text-zinc-500">Organization settings coming soon.</p>
-      </div>
+      <OrganizationProfile
+        appearance={{
+          baseTheme: dark,
+          elements: {
+            rootBox: "w-full",
+            cardBox: "w-full shadow-none",
+            card: "bg-transparent shadow-none border-0",
+          },
+        }}
+      />
     </div>
   );
 }

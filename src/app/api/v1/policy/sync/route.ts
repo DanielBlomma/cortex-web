@@ -3,8 +3,12 @@ import { db } from "@/db";
 import { policies } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { verifyApiKey } from "@/lib/api-keys/verify";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
+  const rl = applyRateLimit(req, 60);
+  if (rl) return rl;
+
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Missing API key" }, { status: 401 });

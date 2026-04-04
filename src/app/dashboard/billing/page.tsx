@@ -19,7 +19,7 @@ export default function BillingPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-zinc-400">
-            Upgrade to Connected for cloud dashboard, central policy management,
+            Upgrade to Cloud for the hosted dashboard, central policy management,
             and analytics across all your teams.
           </p>
         </CardContent>

@@ -16,6 +16,22 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
+      - ./src/db:/app/src/db
+      - ./drizzle.config.ts:/app/drizzle.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+    command: sh -c "npm ci --ignore-scripts && npx drizzle-kit push"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/cortex
+    depends_on:
+      db:
+        condition: service_healthy
+
   web:
     build:
       context: .
@@ -26,10 +42,12 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/cortex
     env_file:
-      - .env.local
+      - .env
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:

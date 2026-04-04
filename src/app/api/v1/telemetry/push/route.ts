@@ -3,8 +3,12 @@ import { db } from "@/db";
 import { telemetryEvents } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { telemetryPushSchema } from "@/lib/validators/telemetry";
+import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
+  const rl = applyRateLimit(req, 60);
+  if (rl) return rl;
+
   const authHeader = req.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return NextResponse.json({ error: "Missing API key" }, { status: 401 });
@@ -51,6 +55,8 @@ export async function POST(req: Request) {
     reloads: data.reloads,
     totalResultsReturned: data.total_results_returned,
     estimatedTokensSaved: data.estimated_tokens_saved,
+    estimatedTokensTotal: data.estimated_tokens_total ?? 0,
+    clientVersion: data.client_version ?? null,
   });
 
   return NextResponse.json({ ok: true });

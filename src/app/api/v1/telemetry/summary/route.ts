@@ -71,6 +71,19 @@ export async function GET(req: Request) {
     .orderBy(desc(sql`date(${telemetryEvents.periodStart} at time zone 'UTC')`))
     .limit(30);
 
+  // Distinct client versions with last-seen timestamp
+  const versions = await db
+    .select({
+      version: telemetryEvents.clientVersion,
+      instances: sql<number>`count(distinct ${telemetryEvents.apiKeyId})`,
+      lastSeen: sql<string>`max(${telemetryEvents.receivedAt})`,
+    })
+    .from(telemetryEvents)
+    .where(eq(telemetryEvents.orgId, ownerId))
+    .groupBy(telemetryEvents.clientVersion)
+    .orderBy(desc(sql`max(${telemetryEvents.receivedAt})`))
+    .limit(10);
+
   const tokensSaved = Number(totals?.totalTokensSaved ?? 0);
   const resultsReturned = Number(totals?.totalResultsReturned ?? 0);
   const reportedTotal = Number(totals?.totalTokensTotal ?? 0);
@@ -89,6 +102,11 @@ export async function GET(req: Request) {
       activeInstances: Number(totals?.distinctInstances ?? 0),
     },
     activePolicies: Number(policyCount?.count ?? 0),
+    versions: versions.map((v) => ({
+      version: v.version ?? "unknown",
+      instances: Number(v.instances),
+      lastSeen: v.lastSeen,
+    })),
     daily: daily.reverse().map((d) => {
       const saved = Number(d.tokensSaved);
       const results = Number(d.resultsReturned);

@@ -179,7 +179,7 @@ export default function ViolationsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex gap-[3px] h-36">
+                <div className="relative flex gap-[3px] h-36">
                   {daily.map((d) => {
                     const barHeight = Math.max(
                       (d.total / maxDaily) * 100,
@@ -213,8 +213,8 @@ export default function ViolationsPage() {
                             style={{ height: `${infoPct}%` }}
                           />
                         </div>
-                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-10">
-                          <div className="bg-zinc-800 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white whitespace-nowrap space-y-0.5">
+                        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-50 pointer-events-none">
+                          <div className="bg-zinc-800 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white whitespace-nowrap space-y-0.5 shadow-lg">
                             <p className="font-medium">{d.date}</p>
                             <p className="text-red-400">{d.errors} errors</p>
                             <p className="text-amber-400">

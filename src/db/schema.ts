@@ -149,6 +149,7 @@ export const telemetryEvents = pgTable(
     estimatedTokensTotal: integer("estimated_tokens_total")
       .notNull()
       .default(0),
+    clientVersion: text("client_version"),
     receivedAt: timestamp("received_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

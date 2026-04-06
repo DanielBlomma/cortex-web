@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
+import { DownloadSection } from "@/components/landing/download";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { Trust } from "@/components/landing/trust";
 import { Features } from "@/components/landing/features";
@@ -12,6 +13,7 @@ export default function Home() {
     <main className="bg-[#0a0a0f]">
       <Navbar />
       <Hero />
+      <DownloadSection />
       <HowItWorks />
       <Trust />
       <Features />

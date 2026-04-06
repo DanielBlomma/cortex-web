@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Plus, Copy, Trash2, Check } from "lucide-react";
+import { Plus, Copy, Trash2, Check, Download } from "lucide-react";
 
 const AVAILABLE_SCOPES = ["telemetry", "policy", "audit-log"] as const;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -207,6 +207,52 @@ export default function ApiKeysPage() {
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-white/[0.02] border-white/5">
+        <CardHeader>
+          <CardTitle className="text-white text-base">
+            Download cortex-enterprise
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-zinc-400">
+            Install cortex-enterprise on each developer machine to connect to
+            this dashboard.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 relative group">
+              <pre className="bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-12 text-sm text-zinc-300 font-mono">
+                npm install -g @danielblomma/cortex-enterprise
+              </pre>
+              <button
+                type="button"
+                onClick={() =>
+                  copyToClipboard(
+                    "npm install -g @danielblomma/cortex-enterprise",
+                    "install"
+                  )
+                }
+                className="absolute top-2 right-2 p-1.5 rounded-md bg-white/5 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                {copiedId === "install" ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5 text-zinc-400" />
+                )}
+              </button>
+            </div>
+            <a
+              href="https://github.com/DanielBlomma/cortex-enterprise/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-white/10 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              GitHub Releases
+            </a>
+          </div>
         </CardContent>
       </Card>
 

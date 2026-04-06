@@ -9,7 +9,8 @@ const steps = [
     title: "Install locally",
     description:
       "Each developer installs Cortex. It indexes your codebase and runs entirely on their machine. No code leaves the building.",
-    code: "npm install -g cortex-enterprise",
+    code: "npm install -g @danielblomma/cortex-enterprise",
+    download: true,
   },
   {
     step: "02",
@@ -71,8 +72,20 @@ export function HowItWorks() {
               </p>
 
               {step.code && (
-                <div className="rounded-md bg-[#0a0a0f] border border-zinc-800 p-3 font-mono text-xs text-zinc-500 overflow-x-auto">
-                  <pre className="whitespace-pre">{step.code}</pre>
+                <div className="space-y-3">
+                  <div className="rounded-md bg-[#0a0a0f] border border-zinc-800 p-3 font-mono text-xs text-zinc-500 overflow-x-auto">
+                    <pre className="whitespace-pre">{step.code}</pre>
+                  </div>
+                  {"download" in step && step.download && (
+                    <a
+                      href="https://github.com/DanielBlomma/cortex-enterprise/releases/latest"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                    >
+                      Or download from GitHub Releases &rarr;
+                    </a>
+                  )}
                 </div>
               )}
             </div>

@@ -101,7 +101,7 @@ export default function ApiKeysPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">API Keys</h1>
+          <h1 className="text-2xl font-bold text-white">Access</h1>
           <p className="text-sm text-zinc-400 mt-1">
             Keys used by cortex-enterprise instances for telemetry and policy
             sync.

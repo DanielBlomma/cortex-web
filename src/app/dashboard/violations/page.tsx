@@ -105,7 +105,7 @@ export default function ViolationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Violations</h1>
+        <h1 className="text-2xl font-bold text-white">Policy Violations</h1>
         <p className="text-sm text-zinc-400 mt-1">
           Policy rule violations reported by cortex-enterprise instances.
         </p>

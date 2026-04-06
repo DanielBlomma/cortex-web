@@ -41,24 +41,15 @@ export function Navbar() {
           <a href="#features" className="hover:text-white transition-colors">
             Features
           </a>
-          <a href="#pricing" className="hover:text-white transition-colors">
-            Pricing
-          </a>
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/sign-in"
-            className="text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/sign-up"
+          <a
+            href="mailto:info@cortex.dev?subject=Request%20Invite"
             className="text-sm px-4 py-2 rounded-full bg-white text-black font-medium hover:bg-zinc-200 transition-colors"
           >
-            Get Started
-          </Link>
+            Request Invite
+          </a>
         </div>
       </nav>
     </motion.header>

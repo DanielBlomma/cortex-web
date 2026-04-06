@@ -2,8 +2,6 @@
 
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
-import Link from "next/link";
-
 export function CTA() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
@@ -29,16 +27,16 @@ export function CTA() {
           Ready to govern your AI tools?
         </h2>
         <p className="text-zinc-400 max-w-lg mx-auto mb-10">
-          Start with the free Community edition. Upgrade to Cloud when your
-          team needs central management.
+          We&apos;re onboarding early teams now. Request an invite to get
+          access to the cloud dashboard.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link
-            href="/sign-up"
+          <a
+            href="mailto:info@cortex.dev?subject=Request%20Invite"
             className="px-6 py-3 rounded-full bg-white text-black font-medium hover:bg-zinc-200 transition-colors text-sm"
           >
-            Start Free Trial
-          </Link>
+            Request Invite
+          </a>
           <a
             href="https://github.com/DanielBlomma/cortex"
             target="_blank"

@@ -26,10 +26,10 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/dashboard/violations", label: "Violations", icon: ShieldAlert },
+  { href: "/dashboard/violations", label: "Policy Violations", icon: ShieldAlert },
   { href: "/dashboard/policies", label: "Policies / Rules", icon: ShieldCheck },
   { href: "/dashboard/reports", label: "Compliance", icon: FileText },
-  { href: "/dashboard/api-keys", label: "API Keys", icon: Key },
+  { href: "/dashboard/api-keys", label: "Access", icon: Key },
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
 ];
 

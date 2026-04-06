@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
 const terminalLines = [
   { prompt: true, text: "cortex status" },
@@ -119,12 +118,12 @@ export function Hero() {
           transition={{ duration: 0.5, delay: 0.25 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20"
         >
-          <Link
-            href="/sign-up"
+          <a
+            href="mailto:info@cortex.dev?subject=Request%20Invite"
             className="px-6 py-3 rounded-full bg-white text-black font-medium hover:bg-zinc-200 transition-colors text-sm"
           >
-            Start Free Trial
-          </Link>
+            Request Invite
+          </a>
           <a
             href="https://github.com/DanielBlomma/cortex"
             target="_blank"

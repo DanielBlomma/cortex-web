@@ -468,7 +468,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-white text-base flex items-center gap-2">
               <Key className="h-4 w-4 text-zinc-400" />
-              API Keys
+              Access
               <span className="text-zinc-500 text-sm font-normal">
                 ({keys.length})
               </span>

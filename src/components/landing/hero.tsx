@@ -119,7 +119,7 @@ export function Hero() {
           className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20"
         >
           <a
-            href="mailto:info@cortex.dev?subject=Request%20Invite"
+            href="mailto:daniel.blomma@gmail.com?subject=Request%20Invite"
             className="px-6 py-3 rounded-full bg-white text-black font-medium hover:bg-zinc-200 transition-colors text-sm"
           >
             Request Invite

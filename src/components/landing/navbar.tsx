@@ -45,7 +45,7 @@ export function Navbar() {
 
         <div className="flex items-center gap-3">
           <a
-            href="mailto:info@cortex.dev?subject=Request%20Invite"
+            href="mailto:daniel.blomma@gmail.com?subject=Request%20Invite"
             className="text-sm px-4 py-2 rounded-full bg-white text-black font-medium hover:bg-zinc-200 transition-colors"
           >
             Request Invite

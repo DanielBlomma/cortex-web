@@ -71,6 +71,14 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "security",
     defaultPriority: 65,
   },
+  {
+    id: "prompt-injection-defense",
+    name: "Prompt Injection Defense",
+    description:
+      "Detects and flags prompt injection attempts in files, comments, and context passed to AI assistants. Scans for instruction overrides, role-play attacks, delimiter escapes, and encoded payloads.",
+    category: "security",
+    defaultPriority: 95,
+  },
 ];
 
 export function isPredefinedRule(ruleId: string): boolean {

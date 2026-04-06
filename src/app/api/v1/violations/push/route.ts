@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { policyViolations } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
+import { verifyHmac } from "@/lib/hmac";
 import { violationPushSchema } from "@/lib/validators/violation";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -27,11 +28,20 @@ export async function POST(req: Request) {
     );
   }
 
+  const rawBody = await req.text();
   let body: unknown;
   try {
-    body = await req.json();
+    body = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  // Verify HMAC signature if provided
+  const signature = req.headers.get("x-cortex-signature");
+  if (signature) {
+    if (!key.hmacSecret || !verifyHmac(rawBody, key.hmacSecret, signature)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
   }
 
   const parsed = violationPushSchema.safeParse(body);
@@ -40,6 +50,26 @@ export async function POST(req: Request) {
       { error: "Invalid payload", details: parsed.error.flatten() },
       { status: 400 }
     );
+  }
+
+  // Reject violations with timestamps more than 7 days old or in the future
+  const now = Date.now();
+  const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+  const MAX_FUTURE_MS = 5 * 60 * 1000; // 5 min clock skew tolerance
+  for (const v of parsed.data.violations) {
+    const ts = new Date(v.occurred_at).getTime();
+    if (now - ts > MAX_AGE_MS) {
+      return NextResponse.json(
+        { error: "Violation occurred_at is too old (max 7 days)" },
+        { status: 400 }
+      );
+    }
+    if (ts - now > MAX_FUTURE_MS) {
+      return NextResponse.json(
+        { error: "Violation occurred_at is in the future" },
+        { status: 400 }
+      );
+    }
   }
 
   const repo = parsed.data.repo ?? null;

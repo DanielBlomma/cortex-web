@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { db } from "@/db";
 import { policies } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { verifyApiKey } from "@/lib/api-keys/verify";
+import { computeHmac } from "@/lib/hmac";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 /**
@@ -53,5 +55,16 @@ export async function GET(req: Request) {
     enforce: r.enforce,
   }));
 
-  return NextResponse.json({ rules });
+  // Compute version hash for cache invalidation + integrity
+  const rulesJson = JSON.stringify(rules);
+  const version = createHash("sha256").update(rulesJson).digest("hex");
+
+  const response: Record<string, unknown> = { rules, version };
+
+  // Sign version with HMAC if key has a secret
+  if (key.hmacSecret) {
+    response.signature = `sha256=${computeHmac(version, key.hmacSecret)}`;
+  }
+
+  return NextResponse.json(response);
 }

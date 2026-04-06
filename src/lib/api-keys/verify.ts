@@ -13,7 +13,14 @@ export async function verifyApiKey(rawKey: string) {
   const hash = hashApiKey(rawKey);
 
   const [key] = await db
-    .select()
+    .select({
+      id: apiKeys.id,
+      orgId: apiKeys.orgId,
+      scopes: apiKeys.scopes,
+      hmacSecret: apiKeys.hmacSecret,
+      expiresAt: apiKeys.expiresAt,
+      revokedAt: apiKeys.revokedAt,
+    })
     .from(apiKeys)
     .where(and(eq(apiKeys.keyHash, hash), isNull(apiKeys.revokedAt)))
     .limit(1);

@@ -28,8 +28,8 @@ const navItems = [
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/violations", label: "Violations", icon: ShieldAlert },
   { href: "/dashboard/policies", label: "Policies / Rules", icon: ShieldCheck },
-  { href: "/dashboard/api-keys", label: "API Keys", icon: Key },
   { href: "/dashboard/reports", label: "Compliance", icon: FileText },
+  { href: "/dashboard/api-keys", label: "API Keys", icon: Key },
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
 ];
 

@@ -18,7 +18,7 @@ export function Footer() {
             rel="noopener noreferrer"
             className="hover:text-white transition-colors"
           >
-            GitHub
+            GitHub — MIT License
           </a>
           <Link href="/sign-in" className="hover:text-white transition-colors">
             Dashboard

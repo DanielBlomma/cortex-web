@@ -83,6 +83,7 @@ export const apiKeys = pgTable(
     name: text("name").notNull().default("Default"),
     keyPrefix: text("key_prefix").notNull(),
     keyHash: text("key_hash").notNull(),
+    rawKey: text("raw_key"),
     hmacSecret: text("hmac_secret"),
     scopes: text("scopes").array().notNull().default(["telemetry", "policy"]),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
@@ -140,6 +141,9 @@ export const telemetryEvents = pgTable(
     relatedLookups: integer("related_lookups").notNull().default(0),
     ruleLookups: integer("rule_lookups").notNull().default(0),
     reloads: integer("reloads").notNull().default(0),
+    callerLookups: integer("caller_lookups").notNull().default(0),
+    traceLookups: integer("trace_lookups").notNull().default(0),
+    impactAnalyses: integer("impact_analyses").notNull().default(0),
     totalResultsReturned: integer("total_results_returned")
       .notNull()
       .default(0),
@@ -169,6 +173,9 @@ export const telemetryDaily = pgTable(
     totalRelatedLookups: integer("total_related_lookups").notNull().default(0),
     totalRuleLookups: integer("total_rule_lookups").notNull().default(0),
     totalReloads: integer("total_reloads").notNull().default(0),
+    totalCallerLookups: integer("total_caller_lookups").notNull().default(0),
+    totalTraceLookups: integer("total_trace_lookups").notNull().default(0),
+    totalImpactAnalyses: integer("total_impact_analyses").notNull().default(0),
     totalResultsReturned: integer("total_results_returned")
       .notNull()
       .default(0),

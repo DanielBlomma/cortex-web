@@ -129,29 +129,3 @@
   }
 }
 
-/* Force dark mode on Clerk popover portals (rendered outside .dark context) */
-.cl-organizationSwitcherPopoverCard,
-.cl-popoverCard {
-  background-color: #0d0d14 !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-.cl-organizationSwitcherPopoverCard *,
-.cl-popoverCard * {
-  color: #e4e4e7 !important;
-}
-
-.cl-organizationSwitcherPopoverCard button:hover,
-.cl-popoverCard button:hover {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-.cl-organizationSwitcherPopoverCard .cl-organizationPreviewMainIdentifier,
-.cl-popoverCard .cl-organizationPreviewMainIdentifier {
-  color: #ffffff !important;
-}
-
-.cl-organizationSwitcherPopoverCard .cl-organizationSwitcherPopoverFooter,
-.cl-popoverCard .cl-footer {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}

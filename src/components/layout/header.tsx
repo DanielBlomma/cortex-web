@@ -11,18 +11,19 @@ export function Header() {
           hidePersonal
           appearance={{
             baseTheme: dark,
+            variables: {
+              colorBackground: "#0d0d14",
+              colorText: "#ffffff",
+              colorTextSecondary: "#a1a1aa",
+              colorInputBackground: "#1a1a24",
+              colorInputText: "#ffffff",
+              colorNeutral: "#ffffff",
+            },
             elements: {
               rootBox: "flex items-center",
               organizationSwitcherTrigger:
                 "text-sm text-zinc-300 hover:text-white gap-2 px-2 py-1 rounded-md hover:bg-white/5 transition-colors",
-              organizationPreviewMainIdentifier:
-                "text-sm font-medium !text-white",
-              organizationPreviewSecondaryIdentifier: "hidden",
               organizationSwitcherTriggerIcon: "text-zinc-500",
-              organizationPreview: "gap-2",
-              organizationSwitcherPopoverCard:
-                "!bg-[#0d0d14] !border-white/10",
-              organizationPreviewTextContainer: "[&>*]:!text-white",
             },
           }}
         />

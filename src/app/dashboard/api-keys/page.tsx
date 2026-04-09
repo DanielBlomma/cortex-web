@@ -161,8 +161,8 @@ export default function ApiKeysPage() {
                         }
                         className="group flex items-center gap-1.5 cursor-pointer"
                       >
-                        <span className="font-mono text-zinc-500 text-xs">
-                          {key.keyPrefix}...
+                        <span className="font-mono text-zinc-500 text-xs break-all">
+                          {key.rawKey ?? `${key.keyPrefix}...`}
                         </span>
                         {copiedId === key.id ? (
                           <Check className="h-3 w-3 text-emerald-400" />
@@ -212,17 +212,15 @@ export default function ApiKeysPage() {
 
       <Card className="bg-white/[0.02] border-white/5">
         <CardHeader>
-          <CardTitle className="text-white text-base">
-            Download cortex-enterprise
-          </CardTitle>
+          <CardTitle className="text-white text-base">Setup Guide</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-zinc-400">
-            Install cortex-enterprise on each developer machine to connect to
-            this dashboard.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative group">
+        <CardContent className="space-y-6">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-white/[0.06] text-xs font-bold text-zinc-300">1</span>
+              <span className="text-sm font-medium text-white">Install</span>
+            </div>
+            <div className="ml-8 relative group">
               <pre className="bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-12 text-sm text-zinc-300 font-mono">
                 npm install -g @danielblomma/cortex-enterprise
               </pre>
@@ -243,33 +241,44 @@ export default function ApiKeysPage() {
                 )}
               </button>
             </div>
-            <a
-              href="https://github.com/DanielBlomma/cortex-enterprise/releases/latest"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-white/10 text-sm text-zinc-300 hover:bg-white/5 transition-colors"
-            >
-              <Download className="h-4 w-4" />
-              GitHub Releases
-            </a>
           </div>
-        </CardContent>
-      </Card>
 
-      <Card className="bg-white/[0.02] border-white/5">
-        <CardHeader>
-          <CardTitle className="text-white text-base">Setup</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-zinc-400">
-            Add your API key to{" "}
-            <code className="text-zinc-300 bg-white/[0.06] px-1.5 py-0.5 rounded text-xs">
-              .context/enterprise.yaml
-            </code>{" "}
-            in each repository where cortex-enterprise is installed:
-          </p>
-          <div className="relative group">
-            <pre className="bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-12 text-xs text-zinc-400 font-mono overflow-x-auto">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-white/[0.06] text-xs font-bold text-zinc-300">2</span>
+              <span className="text-sm font-medium text-white">Initialize your repo</span>
+            </div>
+            <div className="ml-8 relative group">
+              <pre className="bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-12 text-sm text-zinc-300 font-mono">
+                cd your-repo && cortex init --bootstrap
+              </pre>
+              <button
+                type="button"
+                onClick={() =>
+                  copyToClipboard(
+                    "cortex init --bootstrap",
+                    "init"
+                  )
+                }
+                className="absolute top-2 right-2 p-1.5 rounded-md bg-white/5 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                {copiedId === "init" ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5 text-zinc-400" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center h-6 w-6 rounded-full bg-white/[0.06] text-xs font-bold text-zinc-300">3</span>
+              <span className="text-sm font-medium text-white">Download config to <code className="text-zinc-300 bg-white/[0.06] px-1.5 py-0.5 rounded text-xs">.context/</code></span>
+            </div>
+            <div className="ml-8 space-y-3">
+              <div className="relative group">
+                <pre className="bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-24 text-xs text-zinc-400 font-mono overflow-x-auto">
 {`telemetry:
   endpoint: ${BASE_URL}/api/v1/telemetry/push
   api_key: ${keys.length > 0 ? keys[0].rawKey ?? keys[0].keyPrefix + "..." : "ctx_YOUR_KEY_HERE"}
@@ -277,28 +286,51 @@ export default function ApiKeysPage() {
 policy:
   endpoint: ${BASE_URL}/api/v1/policies/sync
   api_key: ${keys.length > 0 ? keys[0].rawKey ?? keys[0].keyPrefix + "..." : "ctx_YOUR_KEY_HERE"}`}
-            </pre>
-            <button
-              type="button"
-              onClick={() => {
-                const keyPlaceholder = keys.length > 0 ? keys[0].rawKey ?? keys[0].keyPrefix + "..." : "ctx_YOUR_KEY_HERE";
-                const yaml = `telemetry:\n  endpoint: ${BASE_URL}/api/v1/telemetry/push\n  api_key: ${keyPlaceholder}\n\npolicy:\n  endpoint: ${BASE_URL}/api/v1/policies/sync\n  api_key: ${keyPlaceholder}`;
-                void copyToClipboard(yaml, "yaml");
-              }}
-              className="absolute top-2 right-2 p-1.5 rounded-md bg-white/5 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-            >
-              {copiedId === "yaml" ? (
-                <Check className="h-3.5 w-3.5 text-emerald-400" />
-              ) : (
-                <Copy className="h-3.5 w-3.5 text-zinc-500" />
+                </pre>
+                <div className="absolute top-2 right-2 flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const keyPlaceholder = keys.length > 0 ? keys[0].rawKey ?? keys[0].keyPrefix + "..." : "ctx_YOUR_KEY_HERE";
+                      const yaml = `telemetry:\n  endpoint: ${BASE_URL}/api/v1/telemetry/push\n  api_key: ${keyPlaceholder}\n\npolicy:\n  endpoint: ${BASE_URL}/api/v1/policies/sync\n  api_key: ${keyPlaceholder}`;
+                      void copyToClipboard(yaml, "yaml");
+                    }}
+                    className="p-1.5 rounded-md bg-white/5 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    title="Copy to clipboard"
+                  >
+                    {copiedId === "yaml" ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5 text-zinc-500" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const keyPlaceholder = keys.length > 0 ? keys[0].rawKey ?? keys[0].keyPrefix + "..." : "ctx_YOUR_KEY_HERE";
+                      const yaml = `telemetry:\n  endpoint: ${BASE_URL}/api/v1/telemetry/push\n  api_key: ${keyPlaceholder}\n\npolicy:\n  endpoint: ${BASE_URL}/api/v1/policies/sync\n  api_key: ${keyPlaceholder}\n`;
+                      const blob = new Blob([yaml], { type: "text/yaml" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "enterprise.yml";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="p-1.5 rounded-md bg-white/5 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    title="Download enterprise.yml"
+                  >
+                    <Download className="h-3.5 w-3.5 text-zinc-500" />
+                  </button>
+                </div>
+              </div>
+              {keys.length > 0 && !keys[0].rawKey && (
+                <p className="text-xs text-zinc-500">
+                  Showing prefix for <span className="text-zinc-300">{keys[0].name}</span>. The full key was shown once at creation.
+                </p>
               )}
-            </button>
+            </div>
           </div>
-          {keys.length > 0 && (
-            <p className="text-xs text-zinc-500">
-              Showing prefix for <span className="text-zinc-300">{keys[0].name}</span>. The full key was shown once at creation.
-            </p>
-          )}
         </CardContent>
       </Card>
 
@@ -329,7 +361,7 @@ policy:
           {createdKey ? (
             <div className="space-y-4">
               <p className="text-sm text-zinc-400">
-                Your new API key is ready. You can always copy it from the
+                Your new API key is ready. You can copy it anytime from the
                 key list.
               </p>
               <div className="flex items-center gap-2">

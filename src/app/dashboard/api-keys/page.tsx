@@ -222,13 +222,13 @@ export default function ApiKeysPage() {
             </div>
             <div className="ml-8 relative group">
               <pre className="bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-12 text-sm text-zinc-300 font-mono">
-                npm install -g @danielblomma/cortex-enterprise --registry=https://npm.pkg.github.com
+                npm install -g @danielblomma/cortex-enterprise
               </pre>
               <button
                 type="button"
                 onClick={() =>
                   copyToClipboard(
-                    "npm install -g @danielblomma/cortex-enterprise --registry=https://npm.pkg.github.com",
+                    "npm install -g @danielblomma/cortex-enterprise",
                     "install"
                   )
                 }

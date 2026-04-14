@@ -154,11 +154,15 @@ export const telemetryEvents = pgTable(
       .notNull()
       .default(0),
     clientVersion: text("client_version"),
+    instanceId: text("instance_id"),
     receivedAt: timestamp("received_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [index("idx_telemetry_org_time").on(t.orgId, t.periodStart)]
+  (t) => [
+    index("idx_telemetry_org_time").on(t.orgId, t.periodStart),
+    index("idx_telemetry_instance").on(t.orgId, t.instanceId)
+  ]
 );
 
 export const telemetryDaily = pgTable(

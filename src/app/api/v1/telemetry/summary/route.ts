@@ -44,7 +44,7 @@ export async function GET(req: Request) {
       totalTokensSaved: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensSaved}), 0)`,
       totalTokensTotal: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensTotal}), 0)`,
       eventCount: sql<number>`count(*)`,
-      distinctInstances: sql<number>`count(distinct ${telemetryEvents.apiKeyId})`,
+      distinctInstances: sql<number>`count(distinct coalesce(${telemetryEvents.instanceId}, ${telemetryEvents.apiKeyId}::text))`,
     })
     .from(telemetryEvents)
     .where(eq(telemetryEvents.orgId, ownerId));
@@ -81,7 +81,7 @@ export async function GET(req: Request) {
   const versions = await db
     .select({
       version: telemetryEvents.clientVersion,
-      instances: sql<number>`count(distinct ${telemetryEvents.apiKeyId})`,
+      instances: sql<number>`count(distinct coalesce(${telemetryEvents.instanceId}, ${telemetryEvents.apiKeyId}::text))`,
       lastSeen: sql<string>`max(${telemetryEvents.receivedAt})`,
     })
     .from(telemetryEvents)

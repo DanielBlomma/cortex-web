@@ -81,6 +81,7 @@ export async function POST(req: Request) {
     estimatedTokensSaved: data.estimated_tokens_saved,
     estimatedTokensTotal: data.estimated_tokens_total ?? 0,
     clientVersion: data.client_version ?? null,
+    instanceId: data.instance_id ?? null,
   });
 
   return NextResponse.json({ ok: true });

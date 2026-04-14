@@ -121,7 +121,7 @@ export async function GET(req: Request) {
       tokensSaved: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensSaved}), 0)`,
       resultsReturned: sql<number>`coalesce(sum(${telemetryEvents.totalResultsReturned}), 0)`,
       pushCount: sql<number>`count(*)`,
-      distinctInstances: sql<number>`count(distinct ${telemetryEvents.apiKeyId})`,
+      distinctInstances: sql<number>`count(distinct coalesce(${telemetryEvents.instanceId}, ${telemetryEvents.apiKeyId}::text))`,
     })
     .from(telemetryEvents)
     .where(

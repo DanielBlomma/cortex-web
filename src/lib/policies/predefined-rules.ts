@@ -40,7 +40,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     defaultPriority: 85,
   },
   {
-    id: "no-external-apis",
+    id: "no-external-api-calls",
     name: "No External API Calls",
     description:
       "Restricts AI-generated code from making calls to external or unapproved APIs.",
@@ -48,7 +48,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     defaultPriority: 70,
   },
   {
-    id: "require-tests",
+    id: "require-test-coverage",
     name: "Require Test Coverage",
     description:
       "Ensures AI-generated code includes or is accompanied by tests.",

@@ -272,6 +272,33 @@ export const policyViolations = pgTable(
   ]
 );
 
+export const reviews = pgTable(
+  "reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    apiKeyId: uuid("api_key_id").references(() => apiKeys.id, {
+      onDelete: "set null",
+    }),
+    repo: text("repo"),
+    policyId: text("policy_id").notNull(),
+    pass: boolean("pass").notNull(),
+    severity: text("severity").notNull().default("info"),
+    message: text("message").notNull().default(""),
+    detail: text("detail"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_reviews_org_time").on(t.orgId, t.reviewedAt),
+    index("idx_reviews_org_policy").on(t.orgId, t.policyId),
+  ]
+);
+
 export const subscriptions = pgTable(
   "subscriptions",
   {

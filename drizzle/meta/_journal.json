@@ -15,6 +15,13 @@
       "when": 1775733718936,
       "tag": "0001_furry_bloodstorm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776411259000,
+      "tag": "0002_add_reviews",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -28,6 +35,12 @@ import {
   type PredefinedRule,
   isPredefinedRule,
 } from "@/lib/policies/predefined-rules";
+import {
+  EVALUATOR_TYPES,
+  getEvaluatorType,
+  summarizeConfig,
+  type EvaluatorField,
+} from "@/lib/policies/evaluator-types";
 import type { Policy } from "@/lib/types/policy";
 
 type PolicyDraft = {
@@ -36,6 +49,8 @@ type PolicyDraft = {
   priority: number;
   scope: string;
   enforce: boolean;
+  type: string | null;
+  config: Record<string, unknown>;
 };
 
 const EMPTY_DRAFT: PolicyDraft = {
@@ -44,6 +59,8 @@ const EMPTY_DRAFT: PolicyDraft = {
   priority: 50,
   scope: "global",
   enforce: true,
+  type: null,
+  config: {},
 };
 
 const categoryColor: Record<PredefinedRule["category"], string> = {
@@ -64,6 +81,122 @@ async function readErrorMessage(res: Response, fallback: string) {
   } catch {
     return fallback;
   }
+}
+
+function EvaluatorFieldInput({
+  field,
+  value,
+  onChange,
+}: {
+  field: EvaluatorField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  if (field.kind === "text") {
+    return (
+      <div>
+        <Label className="text-zinc-300">{field.label}</Label>
+        <Input
+          value={typeof value === "string" ? value : ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          required={field.required}
+          className="mt-1 border-white/10 bg-black/30 font-mono"
+        />
+      </div>
+    );
+  }
+  if (field.kind === "textarea") {
+    return (
+      <div>
+        <Label className="text-zinc-300">{field.label}</Label>
+        <Textarea
+          value={typeof value === "string" ? value : ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
+          rows={field.rows ?? 3}
+          className="mt-1 border-white/10 bg-black/30"
+        />
+      </div>
+    );
+  }
+  if (field.kind === "number") {
+    const current = typeof value === "number" ? value : field.defaultValue;
+    return (
+      <div>
+        <Label className="text-zinc-300">{field.label}</Label>
+        <Input
+          type="number"
+          min={field.min}
+          max={field.max}
+          value={current}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="mt-1 border-white/10 bg-black/30"
+        />
+      </div>
+    );
+  }
+  if (field.kind === "select") {
+    const current = typeof value === "string" ? value : field.defaultValue ?? "";
+    return (
+      <div>
+        <Label className="text-zinc-300">{field.label}</Label>
+        <Select value={current} onValueChange={onChange}>
+          <SelectTrigger className="mt-1 w-full border-white/10 bg-black/30">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
+  if (field.kind === "multiselect") {
+    const selected = new Set(
+      Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [],
+    );
+    return (
+      <div>
+        <Label className="text-zinc-300">{field.label}</Label>
+        <div className="mt-1 flex flex-wrap gap-2">
+          {field.options.map((o) => {
+            const active = selected.has(o.value);
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => {
+                  const next = new Set(selected);
+                  if (active) next.delete(o.value);
+                  else next.add(o.value);
+                  onChange([...next]);
+                }}
+                className="cursor-pointer"
+              >
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-xs",
+                    active
+                      ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/10"
+                      : "text-zinc-400 border-white/10 bg-black/20"
+                  )}
+                >
+                  {o.label}
+                </Badge>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 export default function PoliciesPage() {
@@ -115,6 +248,11 @@ export default function PoliciesPage() {
       priority: policy.priority,
       scope: policy.scope,
       enforce: policy.enforce,
+      type: policy.type ?? null,
+      config:
+        policy.config && typeof policy.config === "object" && !Array.isArray(policy.config)
+          ? { ...(policy.config as Record<string, unknown>) }
+          : {},
     });
     setDialogError(null);
     setDialogOpen(true);
@@ -217,6 +355,8 @@ export default function PoliciesPage() {
       priority: Number(draft.priority),
       scope: draft.scope.trim() || "global",
       enforce: draft.enforce,
+      type: draft.type,
+      config: draft.type ? draft.config : null,
     };
 
     try {
@@ -234,6 +374,9 @@ export default function PoliciesPage() {
                   priority: payload.priority,
                   scope: payload.scope,
                   enforce: payload.enforce,
+                  // type is locked on edit; config stays tunable so you can
+                  // tweak e.g. severity without recreating the rule.
+                  config: payload.config,
                 }
               : payload
           ),
@@ -516,6 +659,14 @@ export default function PoliciesPage() {
                           >
                             Custom
                           </Badge>
+                          {policy.type && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs text-sky-300 border-sky-400/20 bg-sky-400/10 font-mono"
+                            >
+                              {policy.type}
+                            </Badge>
+                          )}
                           <Badge
                             variant="outline"
                             className="text-emerald-400 border-emerald-400/20 bg-emerald-400/10 text-xs"
@@ -530,6 +681,11 @@ export default function PoliciesPage() {
                         <p className="font-mono text-[11px] text-zinc-500">
                           {policy.ruleId}
                         </p>
+                        {policy.type && (
+                          <p className="font-mono text-[11px] text-zinc-500">
+                            {summarizeConfig(policy.type, policy.config)}
+                          </p>
+                        )}
                       </div>
                       <span className="text-xs text-zinc-500">
                         Priority: {policy.priority}
@@ -714,6 +870,73 @@ export default function PoliciesPage() {
               <span className="text-xs text-zinc-500">
                 Click to toggle enforcement
               </span>
+            </div>
+
+            <div className="border-t border-white/5 pt-4 space-y-3">
+              <div>
+                <Label className="text-zinc-300">Evaluator type</Label>
+                {editingPolicy && editingPolicy.type ? (
+                  <div className="mt-1 flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className="text-xs text-sky-300 border-sky-400/20 bg-sky-400/10 font-mono"
+                    >
+                      {getEvaluatorType(editingPolicy.type)?.label ?? editingPolicy.type}
+                    </Badge>
+                    <span className="text-xs text-zinc-500">
+                      Locked — delete and recreate to change type.
+                    </span>
+                  </div>
+                ) : (
+                  <Select
+                    value={draft.type ?? "none"}
+                    onValueChange={(v) => {
+                      const newType = typeof v === "string" && v !== "none" ? v : null;
+                      setDraft((current) => ({
+                        ...current,
+                        type: newType,
+                        config: newType
+                          ? { ...(getEvaluatorType(newType)?.defaultConfig ?? {}) }
+                          : {},
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="mt-1 w-full border-white/10 bg-black/30">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">
+                        None (name-based dispatch)
+                      </SelectItem>
+                      {EVALUATOR_TYPES.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {draft.type && (
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {getEvaluatorType(draft.type)?.description}
+                  </p>
+                )}
+              </div>
+
+              {draft.type &&
+                getEvaluatorType(draft.type)?.fields.map((field) => (
+                  <EvaluatorFieldInput
+                    key={field.key}
+                    field={field}
+                    value={draft.config[field.key]}
+                    onChange={(v) =>
+                      setDraft((current) => ({
+                        ...current,
+                        config: { ...current.config, [field.key]: v },
+                      }))
+                    }
+                  />
+                ))}
             </div>
 
             <Button type="submit" disabled={submitting} className="w-full">

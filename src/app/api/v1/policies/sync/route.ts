@@ -42,6 +42,8 @@ export async function GET(req: Request) {
       priority: policies.priority,
       scope: policies.scope,
       enforce: policies.enforce,
+      type: policies.type,
+      config: policies.config,
     })
     .from(policies)
     .where(eq(policies.orgId, key.orgId))
@@ -53,6 +55,8 @@ export async function GET(req: Request) {
     priority: r.priority,
     scope: r.scope,
     enforce: r.enforce,
+    type: r.type,
+    config: r.config,
   }));
 
   // Compute version hash for cache invalidation + integrity

@@ -5,5 +5,7 @@ export type Policy = {
   priority: number;
   scope: string;
   enforce: boolean;
+  type: string | null;
+  config: Record<string, unknown> | null;
   createdAt: string;
 };

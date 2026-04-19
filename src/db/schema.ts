@@ -7,6 +7,7 @@ import {
   date,
   uuid,
   bigint,
+  jsonb,
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
@@ -206,6 +207,11 @@ export const policies = pgTable(
     priority: integer("priority").notNull().default(50),
     scope: text("scope").notNull().default("global"),
     enforce: boolean("enforce").notNull().default(true),
+    // Type + config carry execution hints for generic evaluators in
+    // cortex-enterprise. Nullable: predefined rules (name-based registry)
+    // and legacy policies leave these null. Custom rules must populate both.
+    type: text("type"),
+    config: jsonb("config"),
     createdBy: text("created_by").references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

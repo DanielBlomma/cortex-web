@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { buildAppCspHeader } from "./src/lib/security/csp";
 
 const nextConfig: NextConfig = {
   output: process.env.DOCKER_BUILD ? "standalone" : undefined,
@@ -23,15 +24,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: "Content-Security-Policy",
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev",
-              "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https:",
-              "font-src 'self'",
-              "connect-src 'self' https://*.clerk.accounts.dev https://api.clerk.com",
-              "frame-src https://*.clerk.accounts.dev",
-            ].join("; "),
+            value: buildAppCspHeader(),
           },
         ],
       },

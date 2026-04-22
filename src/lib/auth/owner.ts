@@ -30,11 +30,14 @@ export async function getOwnerId(): Promise<{
     .limit(1);
 
   if (!existingOrg) {
-    await db.insert(organizations).values({
-      id: ownerId,
-      name: orgId ? "Organization" : "Personal",
-      slug: ownerId,
-    });
+    await db
+      .insert(organizations)
+      .values({
+        id: ownerId,
+        name: orgId ? "Organization" : "Personal",
+        slug: ownerId,
+      })
+      .onConflictDoNothing();
   }
 
   // Ensure user row exists
@@ -46,11 +49,14 @@ export async function getOwnerId(): Promise<{
 
   if (!existingUser) {
     const clerkUser = await currentUser();
-    await db.insert(users).values({
-      id: userId,
-      email: clerkUser?.emailAddresses[0]?.emailAddress ?? "unknown",
-      name: clerkUser?.fullName ?? null,
-    });
+    await db
+      .insert(users)
+      .values({
+        id: userId,
+        email: clerkUser?.emailAddresses[0]?.emailAddress ?? "unknown",
+        name: clerkUser?.fullName ?? null,
+      })
+      .onConflictDoNothing();
   }
 
   if (!orgId) {

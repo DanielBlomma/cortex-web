@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { computeHmac } from "@/lib/hmac";
 import { logAudit } from "@/lib/audit/log";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 /**
@@ -15,6 +16,7 @@ import { applyRateLimit } from "@/lib/rate-limit";
  * Returns { rules: [...] } in the format cortex-enterprise expects.
  */
 export async function GET(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 60);
   if (rl) return rl;
 

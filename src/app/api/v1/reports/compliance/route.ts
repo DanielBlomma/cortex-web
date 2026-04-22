@@ -19,9 +19,11 @@ import {
   RESIDUAL_CUSTOMER_RESPONSIBILITIES,
 } from "@/lib/compliance/control-mapping";
 import { summarizeAuditEvidence } from "@/lib/compliance/audit-evidence";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 5);
   if (rl) return rl;
 

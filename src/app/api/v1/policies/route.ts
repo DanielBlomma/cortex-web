@@ -5,6 +5,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { createPolicySchema } from "@/lib/validators/policy";
 import { getOwnerId } from "@/lib/auth/owner";
 import { logAudit } from "@/lib/audit/log";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { isPredefinedRule } from "@/lib/policies/predefined-rules";
 import { harmonizePolicyConfigSeverity } from "@/lib/policies/config";
@@ -23,6 +24,7 @@ function normalizedPolicyForCreate(input: ReturnType<typeof createPolicySchema.p
 }
 
 export async function GET(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 
@@ -86,6 +88,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 

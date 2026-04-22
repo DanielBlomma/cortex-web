@@ -4,10 +4,12 @@ import { telemetryEvents } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { verifyHmac } from "@/lib/hmac";
 import { logAudit } from "@/lib/audit/log";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { telemetryPushSchema } from "@/lib/validators/telemetry";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 60);
   if (rl) return rl;
 

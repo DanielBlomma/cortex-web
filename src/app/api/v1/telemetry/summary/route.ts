@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { telemetryEvents, policies } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { getOwnerId } from "@/lib/auth/owner";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { TELEMETRY_RETENTION_POLICY } from "@/lib/telemetry/retention";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -22,6 +23,7 @@ function estimateTotal(
 }
 
 export async function GET(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 

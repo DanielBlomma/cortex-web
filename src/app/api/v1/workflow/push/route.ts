@@ -3,10 +3,12 @@ import { db } from "@/db";
 import { workflowSnapshots } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { logAudit } from "@/lib/audit/log";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { workflowPushSchema } from "@/lib/validators/workflow";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 60);
   if (rl) return rl;
 

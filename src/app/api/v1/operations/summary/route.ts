@@ -16,10 +16,12 @@ import {
   createSummaryWarning,
   settleOperationsQuery,
 } from "@/lib/operations/summary";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
   try {
+    await ensureRuntimeSchema();
     const rl = applyRateLimit(req, 30);
     if (rl) return rl;
 

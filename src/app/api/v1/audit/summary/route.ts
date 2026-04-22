@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { auditLog } from "@/db/schema";
 import { AUDIT_RETENTION_POLICY } from "@/lib/audit/retention";
 import { getOwnerId } from "@/lib/auth/owner";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 type MetadataValue = Record<string, unknown> | null;
@@ -30,6 +31,7 @@ function parseMetadata(raw: string | null): MetadataValue {
 }
 
 export async function GET(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 

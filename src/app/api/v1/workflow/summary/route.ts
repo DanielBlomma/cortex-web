@@ -3,9 +3,11 @@ import { db } from "@/db";
 import { workflowSnapshots } from "@/db/schema";
 import { desc, eq, sql } from "drizzle-orm";
 import { getOwnerId } from "@/lib/auth/owner";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 

@@ -1,5 +1,5 @@
 type OperationsWarning = {
-  code: "schema_unavailable";
+  code: "schema_unavailable" | "summary_unavailable";
   detail: string;
 };
 
@@ -41,6 +41,16 @@ export function createSchemaWarning(error: unknown): OperationsWarning {
   return {
     code: "schema_unavailable",
     detail: [code, message].filter(Boolean).join(": ") || "unknown database error",
+  };
+}
+
+export function createSummaryWarning(error: unknown): OperationsWarning {
+  const { code, message } = asPgLikeError(error);
+  return {
+    code: "summary_unavailable",
+    detail:
+      [code, message].filter(Boolean).join(": ") ||
+      "unexpected operations summary error",
   };
 }
 

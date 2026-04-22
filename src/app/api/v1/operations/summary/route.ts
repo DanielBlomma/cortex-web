@@ -12,7 +12,10 @@ import {
   workflowSnapshots,
 } from "@/db/schema";
 import { buildOperationalHealthSummary } from "@/lib/operations/health";
-import { settleOperationsQuery } from "@/lib/operations/summary";
+import {
+  createSummaryWarning,
+  settleOperationsQuery,
+} from "@/lib/operations/summary";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
@@ -27,7 +30,10 @@ export async function GET(req: Request) {
 
     const ownerId = orgId ?? `personal_${userId}`;
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3_600_000);
-    const warnings: { code: "schema_unavailable"; detail: string }[] = [];
+    const warnings: {
+      code: "schema_unavailable" | "summary_unavailable";
+      detail: string;
+    }[] = [];
 
     const [
       orgRows,
@@ -171,9 +177,30 @@ export async function GET(req: Request) {
     });
   } catch (error) {
     console.error("[operations.summary] Failed to build operations summary", error);
-    return NextResponse.json(
-      { error: "Failed to load operations summary" },
-      { status: 500 },
-    );
+    const summary = buildOperationalHealthSummary({
+      plan: "free",
+      activePolicies: 0,
+      enforcedPolicies: 0,
+      blockingPolicies: 0,
+      activeApiKeys: 0,
+      activeInstances: 0,
+      distinctVersions: 0,
+      lastPolicySyncAt: null,
+      lastTelemetryAt: null,
+      totalToolCalls: 0,
+      failedToolCalls: 0,
+      workflowSessions30d: 0,
+      reviewedSessions30d: 0,
+      approvedSessions30d: 0,
+      blockedSessions30d: 0,
+      requiredAuditEvents30d: 0,
+      lastAuditAt: null,
+    });
+
+    return NextResponse.json({
+      generatedAt: new Date().toISOString(),
+      summary,
+      warnings: [createSummaryWarning(error)],
+    });
   }
 }

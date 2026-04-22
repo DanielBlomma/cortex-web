@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createSummaryWarning,
   createSchemaWarning,
   isRecoverableOperationsError,
 } from "./summary";
@@ -40,6 +41,15 @@ describe("createSchemaWarning", () => {
     ).toEqual({
       code: "schema_unavailable",
       detail: '42P01: relation "reviews" does not exist',
+    });
+  });
+});
+
+describe("createSummaryWarning", () => {
+  it("keeps unexpected runtime errors visible in warning output", () => {
+    expect(createSummaryWarning(new Error("database connection refused"))).toEqual({
+      code: "summary_unavailable",
+      detail: "database connection refused",
     });
   });
 });

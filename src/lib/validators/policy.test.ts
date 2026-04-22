@@ -2,8 +2,11 @@ import { describe, it, expect } from "vitest";
 import { createPolicySchema, updatePolicySchema } from "./policy";
 
 const baseValid = {
+  title: "My Policy",
   ruleId: "custom:my-rule",
   description: "Test rule",
+  status: "active",
+  severity: "block",
   priority: 50,
   scope: "global",
   enforce: true,
@@ -14,6 +17,7 @@ describe("createPolicySchema", () => {
     const result = createPolicySchema.safeParse(baseValid);
     expect(result.success).toBe(true);
     if (result.success) {
+      expect(result.data.title).toBe("My Policy");
       expect(result.data.type).toBeUndefined();
       expect(result.data.config).toBeUndefined();
     }
@@ -70,6 +74,15 @@ describe("createPolicySchema", () => {
       config: "not-an-object",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts explicit status and severity", () => {
+    const result = createPolicySchema.safeParse({
+      ...baseValid,
+      status: "draft",
+      severity: "warning",
+    });
+    expect(result.success).toBe(true);
   });
 });
 

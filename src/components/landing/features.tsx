@@ -25,9 +25,9 @@ const features = [
       "The cloud only sees numbers and rule names. Never source code, never file contents, never what the developer searched for.",
   },
   {
-    title: "Zero friction for developers",
+    title: "Governed workflow, not vague guidance",
     description:
-      "They install Cortex once. Rules sync automatically. AI assistants get better context. No new workflows, no extra steps.",
+      "Developers keep their AI tools, but Cortex adds an explicit plan, review, iterate, and approve loop that produces evidence instead of ad hoc chat logs.",
   },
   {
     title: "Air-gapped ready",
@@ -66,8 +66,8 @@ export function Features() {
             Central control, local execution
           </h2>
           <p className="text-zinc-400 max-w-xl mx-auto">
-            Your developers use AI normally. Cortex handles governance in the
-            background.
+            Developers keep local execution and high-signal context while the
+            enterprise layer adds policy, workflow, audit, and reporting.
           </p>
         </motion.div>
 

@@ -7,6 +7,7 @@ import { UUID_RE } from "@/lib/validators/uuid";
 import { getOwnerId } from "@/lib/auth/owner";
 import { logAudit } from "@/lib/audit/log";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { resolvePolicyUpdateConfig } from "@/lib/policies/config";
 
 export async function GET(
   _req: Request,
@@ -44,6 +45,12 @@ export async function PUT(
   const owner = await getOwnerId();
   if (!owner)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (owner.role !== "admin") {
+    return NextResponse.json(
+      { error: "Only admins can update policies" },
+      { status: 403 }
+    );
+  }
 
   const { id } = await params;
   if (!UUID_RE.test(id))
@@ -64,9 +71,37 @@ export async function PUT(
     );
   }
 
+  const [existingPolicy] = await db
+    .select({
+      id: policies.id,
+      ruleId: policies.ruleId,
+      severity: policies.severity,
+      config: policies.config,
+    })
+    .from(policies)
+    .where(and(eq(policies.id, id), eq(policies.orgId, owner.ownerId)));
+
+  if (!existingPolicy)
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const nextConfig = resolvePolicyUpdateConfig(
+    {
+      severity: existingPolicy.severity,
+      config: existingPolicy.config as Record<string, unknown> | null | undefined,
+    },
+    parsed.data
+  );
+  const updateValues: Partial<typeof policies.$inferInsert> = {
+    ...parsed.data,
+    updatedAt: new Date(),
+  };
+  if (nextConfig !== undefined) {
+    updateValues.config = nextConfig;
+  }
+
   const [policy] = await db
     .update(policies)
-    .set({ ...parsed.data, updatedAt: new Date() })
+    .set(updateValues)
     .where(and(eq(policies.id, id), eq(policies.orgId, owner.ownerId)))
     .returning();
 
@@ -97,6 +132,12 @@ export async function DELETE(
   const owner = await getOwnerId();
   if (!owner)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (owner.role !== "admin") {
+    return NextResponse.json(
+      { error: "Only admins can delete policies" },
+      { status: 403 }
+    );
+  }
 
   const { id } = await params;
   if (!UUID_RE.test(id))

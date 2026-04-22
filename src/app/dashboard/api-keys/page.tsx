@@ -26,6 +26,10 @@ import { Plus, Copy, Trash2, Check, Download } from "lucide-react";
 const AVAILABLE_SCOPES = ["telemetry", "policy", "audit-log"] as const;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
+function buildEnterpriseConfigYaml(apiKey: string) {
+  return `enterprise:\n  endpoint: ${BASE_URL}\n  api_key: ${apiKey}\n\ntelemetry:\n  endpoint: ${BASE_URL}/api/v1/telemetry/push\n  api_key: ${apiKey}\n\npolicy:\n  endpoint: ${BASE_URL}/api/v1/policies/sync\n  api_key: ${apiKey}`;
+}
+
 type ApiKey = {
   id: string;
   name: string;
@@ -279,20 +283,18 @@ export default function ApiKeysPage() {
             <div className="ml-8 space-y-3">
               <div className="relative group">
                 <pre className="bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-24 text-xs text-zinc-400 font-mono overflow-x-auto">
-{`telemetry:
-  endpoint: ${BASE_URL}/api/v1/telemetry/push
-  api_key: ${keys.length > 0 ? keys[0].rawKey ?? keys[0].keyPrefix + "..." : "ctx_YOUR_KEY_HERE"}
-
-policy:
-  endpoint: ${BASE_URL}/api/v1/policies/sync
-  api_key: ${keys.length > 0 ? keys[0].rawKey ?? keys[0].keyPrefix + "..." : "ctx_YOUR_KEY_HERE"}`}
+{buildEnterpriseConfigYaml(
+  keys.length > 0
+    ? keys[0].rawKey ?? keys[0].keyPrefix + "..."
+    : "ctx_YOUR_KEY_HERE"
+)}
                 </pre>
                 <div className="absolute top-2 right-2 flex gap-1">
                   <button
                     type="button"
                     onClick={() => {
                       const keyPlaceholder = keys.length > 0 ? keys[0].rawKey ?? keys[0].keyPrefix + "..." : "ctx_YOUR_KEY_HERE";
-                      const yaml = `telemetry:\n  endpoint: ${BASE_URL}/api/v1/telemetry/push\n  api_key: ${keyPlaceholder}\n\npolicy:\n  endpoint: ${BASE_URL}/api/v1/policies/sync\n  api_key: ${keyPlaceholder}`;
+                      const yaml = buildEnterpriseConfigYaml(keyPlaceholder);
                       void copyToClipboard(yaml, "yaml");
                     }}
                     className="p-1.5 rounded-md bg-white/5 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
@@ -308,7 +310,7 @@ policy:
                     type="button"
                     onClick={() => {
                       const keyPlaceholder = keys.length > 0 ? keys[0].rawKey ?? keys[0].keyPrefix + "..." : "ctx_YOUR_KEY_HERE";
-                      const yaml = `telemetry:\n  endpoint: ${BASE_URL}/api/v1/telemetry/push\n  api_key: ${keyPlaceholder}\n\npolicy:\n  endpoint: ${BASE_URL}/api/v1/policies/sync\n  api_key: ${keyPlaceholder}\n`;
+                      const yaml = `${buildEnterpriseConfigYaml(keyPlaceholder)}\n`;
                       const blob = new Blob([yaml], { type: "text/yaml" });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement("a");
@@ -386,18 +388,12 @@ policy:
               </p>
               <div className="relative group">
                 <pre className="bg-black/50 border border-white/10 rounded-lg px-4 py-3 pr-12 text-xs text-zinc-400 font-mono">
-{`telemetry:
-  endpoint: ${BASE_URL}/api/v1/telemetry/push
-  api_key: ${createdKey}
-
-policy:
-  endpoint: ${BASE_URL}/api/v1/policies/sync
-  api_key: ${createdKey}`}
+{buildEnterpriseConfigYaml(createdKey)}
                 </pre>
                 <button
                   type="button"
                   onClick={() => {
-                    const yaml = `telemetry:\n  endpoint: ${BASE_URL}/api/v1/telemetry/push\n  api_key: ${createdKey}\n\npolicy:\n  endpoint: ${BASE_URL}/api/v1/policies/sync\n  api_key: ${createdKey}`;
+                    const yaml = buildEnterpriseConfigYaml(createdKey);
                     void copyToClipboard(yaml, "created-yaml");
                   }}
                   className="absolute top-2 right-2 p-1.5 rounded-md bg-white/5 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"

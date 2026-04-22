@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { reviews } from "@/db/schema";
-import { eq, sql, desc } from "drizzle-orm";
+import { policies, reviews } from "@/db/schema";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getOwnerId } from "@/lib/auth/owner";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -37,6 +37,9 @@ export async function GET(req: Request) {
   const byPolicy = await db
     .select({
       policyId: reviews.policyId,
+      policyTitle: policies.title,
+      policySeverity: policies.severity,
+      policyStatus: policies.status,
       count: sql<number>`count(*)`,
       passed: sql<number>`count(*) filter (where ${reviews.pass} = true)`,
       failed: sql<number>`count(*) filter (where ${reviews.pass} = false)`,
@@ -44,8 +47,12 @@ export async function GET(req: Request) {
       lastSeen: sql<string>`max(${reviews.reviewedAt})`,
     })
     .from(reviews)
+    .leftJoin(
+      policies,
+      and(eq(policies.orgId, ownerId), eq(policies.ruleId, reviews.policyId))
+    )
     .where(eq(reviews.orgId, ownerId))
-    .groupBy(reviews.policyId)
+    .groupBy(reviews.policyId, policies.title, policies.severity, policies.status)
     .orderBy(desc(sql`count(*)`))
     .limit(20);
 
@@ -69,6 +76,9 @@ export async function GET(req: Request) {
       id: reviews.id,
       repo: reviews.repo,
       policyId: reviews.policyId,
+      policyTitle: policies.title,
+      policySeverity: policies.severity,
+      policyStatus: policies.status,
       pass: reviews.pass,
       severity: reviews.severity,
       message: reviews.message,
@@ -76,6 +86,10 @@ export async function GET(req: Request) {
       reviewedAt: reviews.reviewedAt,
     })
     .from(reviews)
+    .leftJoin(
+      policies,
+      and(eq(policies.orgId, ownerId), eq(policies.ruleId, reviews.policyId))
+    )
     .where(eq(reviews.orgId, ownerId))
     .orderBy(desc(reviews.reviewedAt))
     .limit(50);
@@ -89,6 +103,9 @@ export async function GET(req: Request) {
     complianceScore,
     byPolicy: byPolicy.map((p) => ({
       policyId: p.policyId,
+      policyTitle: p.policyTitle ?? p.policyId,
+      policySeverity: p.policySeverity ?? null,
+      policyStatus: p.policyStatus ?? null,
       count: Number(p.count),
       passed: Number(p.passed),
       failed: Number(p.failed),

@@ -10,9 +10,19 @@ import { logAudit } from "@/lib/audit/log";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 const AVAILABLE_SCOPES = ["telemetry", "policy", "audit-log"] as const;
+const ENVIRONMENT_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 const createKeySchema = z.object({
   name: z.string().min(1).max(100).default("Default"),
+  environment: z
+    .string()
+    .min(1)
+    .max(32)
+    .regex(
+      ENVIRONMENT_RE,
+      "Environment must be lowercase alphanumeric and may include hyphens"
+    )
+    .default("production"),
   scopes: z
     .array(z.enum(AVAILABLE_SCOPES))
     .min(1, "Select at least one scope")
@@ -25,11 +35,18 @@ export async function GET(req: Request) {
 
   const owner = await getOwnerId();
   if (!owner) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (owner.role !== "admin") {
+    return NextResponse.json(
+      { error: "Only admins can view API keys" },
+      { status: 403 }
+    );
+  }
 
   const keys = await db
     .select({
       id: apiKeys.id,
       name: apiKeys.name,
+      environment: apiKeys.environment,
       keyPrefix: apiKeys.keyPrefix,
       rawKey: apiKeys.rawKey,
       scopes: apiKeys.scopes,
@@ -49,6 +66,12 @@ export async function POST(req: Request) {
 
   const owner = await getOwnerId();
   if (!owner) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (owner.role !== "admin") {
+    return NextResponse.json(
+      { error: "Only admins can create API keys" },
+      { status: 403 }
+    );
+  }
 
   // Check plan limits
   const [org] = await db
@@ -89,7 +112,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { name, scopes } = parsed.data;
+  const { environment, name, scopes } = parsed.data;
   const { rawKey, keyHash, keyPrefix } = generateApiKey();
   const hmacSecret = generateHmacSecret();
 
@@ -98,6 +121,7 @@ export async function POST(req: Request) {
     .values({
       orgId: owner.ownerId,
       name,
+      environment,
       keyPrefix,
       keyHash,
       rawKey,
@@ -108,6 +132,7 @@ export async function POST(req: Request) {
     .returning({
       id: apiKeys.id,
       name: apiKeys.name,
+      environment: apiKeys.environment,
       keyPrefix: apiKeys.keyPrefix,
       createdAt: apiKeys.createdAt,
     });
@@ -118,8 +143,8 @@ export async function POST(req: Request) {
     action: "create",
     resourceType: "api_key",
     resourceId: key.id,
-    description: `Created API key "${name}"`,
-    metadata: { scopes },
+    description: `Created API key "${name}" for ${environment}`,
+    metadata: { environment, scopes },
     req,
   });
 

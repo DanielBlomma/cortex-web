@@ -21,13 +21,23 @@ import {
   Key,
   AlertTriangle,
   ClipboardList,
+  CheckCircle2,
+  Gauge,
+  GitBranch,
 } from "lucide-react";
+import type { Policy as DashboardPolicy } from "@/lib/types/policy";
 
 type Policy = {
+  id: string;
+  title: string;
   ruleId: string;
+  kind: DashboardPolicy["kind"];
+  status: DashboardPolicy["status"];
+  severity: DashboardPolicy["severity"];
   description: string;
   priority: number;
   enforce: boolean;
+  scope: string;
   createdAt: string;
 };
 
@@ -44,6 +54,8 @@ type ApiKeyEntry = {
 
 type ViolationByRule = {
   ruleId: string;
+  ruleTitle: string;
+  policySeverity: DashboardPolicy["severity"] | null;
   count: number;
   errors: number;
   warnings: number;
@@ -53,8 +65,14 @@ type AuditEvent = {
   id: string;
   userId: string | null;
   action: string;
+  source?: string | null;
+  eventType?: string | null;
+  evidenceLevel?: string | null;
   resourceType: string;
   description: string;
+  repo?: string | null;
+  sessionId?: string | null;
+  occurredAt?: string;
   ipAddress: string | null;
   createdAt: string;
 };
@@ -86,15 +104,75 @@ type ComplianceReport = {
   };
   auditTrail: {
     totalEvents: number;
+    retention?: {
+      requiredDays: number;
+      diagnosticDays: number;
+    };
     events: AuditEvent[];
   };
+  reviewEvidence: {
+    total: number;
+    passed: number;
+    failed: number;
+    blockingFailures: number;
+    warnings: number;
+    passRate: number | null;
+  };
+  workflowEvidence: {
+    totalSnapshots: number;
+    approvedSnapshots: number;
+    readySnapshots: number;
+    blockedSnapshots: number;
+    recent: Array<{
+      repo: string | null;
+      sessionId: string | null;
+      phase: string;
+      approvalStatus: string;
+      planStatus: string;
+      reviewStatus: string;
+      receivedAt: string;
+    }>;
+  };
   telemetry: {
+    retention?: {
+      days: number;
+      payload: string;
+      excludes: string[];
+    };
+    totalToolCalls: number;
+    successfulToolCalls: number;
+    failedToolCalls: number;
+    totalDurationMs: number;
+    sessionStarts: number;
+    sessionEnds: number;
     totalSearches: number;
     totalTokensSaved: number;
     totalResultsReturned: number;
     telemetryPushes: number;
     activeInstances: number;
   };
+  controlMapping: {
+    summary: {
+      covered: number;
+      partial: number;
+      manual: number;
+      total: number;
+    };
+    controls: Array<{
+      id: string;
+      title: string;
+      capability: string;
+      status: "covered" | "partial" | "manual";
+      rationale: string;
+      evidenceSignals: string[];
+      mappings: Array<{
+        framework: string;
+        area: string;
+      }>;
+      customerResponsibilities: string[];
+    }>;
+  };
+  residualResponsibilities: string[];
 };
 
 function formatNumber(n: number): string {
@@ -112,6 +190,26 @@ function defaultFrom(): string {
 function defaultTo(): string {
   return new Date().toISOString().split("T")[0];
 }
+
+const policyStatusBadgeClass: Record<DashboardPolicy["status"], string> = {
+  active: "text-emerald-400 border-emerald-400/20 bg-emerald-400/10",
+  draft: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  disabled: "text-zinc-400 border-white/10 bg-black/20",
+  archived: "text-zinc-500 border-white/10 bg-black/30",
+};
+
+const policySeverityBadgeClass: Record<DashboardPolicy["severity"], string> = {
+  block: "text-red-400 border-red-400/20 bg-red-400/10",
+  error: "text-orange-400 border-orange-400/20 bg-orange-400/10",
+  warning: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  info: "text-sky-300 border-sky-400/20 bg-sky-400/10",
+};
+
+const controlStatusBadgeClass = {
+  covered: "text-emerald-400 border-emerald-400/20 bg-emerald-400/10",
+  partial: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  manual: "text-zinc-400 border-white/10 bg-black/20",
+} as const;
 
 export default function ReportsPage() {
   const [from, setFrom] = useState(defaultFrom);
@@ -177,18 +275,66 @@ export default function ReportsPage() {
       `Telemetry,Active Instances,${report.telemetry.activeInstances}`
     );
     lines.push(`Audit,Total Events,${report.auditTrail.totalEvents}`);
+    lines.push(`Reviews,Total,${report.reviewEvidence.total}`);
+    lines.push(`Reviews,Passed,${report.reviewEvidence.passed}`);
+    lines.push(`Reviews,Failed,${report.reviewEvidence.failed}`);
+    lines.push(`Workflow,Snapshots,${report.workflowEvidence.totalSnapshots}`);
+    lines.push(`Workflow,Approved,${report.workflowEvidence.approvedSnapshots}`);
+    lines.push(
+      `Controls,Covered,${report.controlMapping.summary.covered}`
+    );
+    lines.push(
+      `Controls,Partial,${report.controlMapping.summary.partial}`
+    );
+    lines.push(`Controls,Manual,${report.controlMapping.summary.manual}`);
+    lines.push(`Telemetry,Tool Calls,${report.telemetry.totalToolCalls}`);
+    lines.push(
+      `Telemetry,Successful Tool Calls,${report.telemetry.successfulToolCalls}`
+    );
+    lines.push(
+      `Telemetry,Failed Tool Calls,${report.telemetry.failedToolCalls}`
+    );
+    lines.push(`Telemetry,Session Starts,${report.telemetry.sessionStarts}`);
+    lines.push(`Telemetry,Session Ends,${report.telemetry.sessionEnds}`);
+    lines.push(
+      `Telemetry,Total Duration Ms,${report.telemetry.totalDurationMs}`
+    );
 
     lines.push("");
-    lines.push("Rule ID,Violations,Errors,Warnings");
-    for (const r of report.violations.byRule) {
-      lines.push(`${r.ruleId},${r.count},${r.errors},${r.warnings}`);
+    lines.push("Control ID,Title,Status,Capability,Rationale,Mappings,Evidence Signals");
+    for (const control of report.controlMapping.controls) {
+      lines.push(
+        `${control.id},"${control.title}",${control.status},"${control.capability}","${control.rationale}","${control.mappings.map((mapping) => `${mapping.framework}: ${mapping.area}`).join(" | ")}","${control.evidenceSignals.join(" | ")}"`
+      );
     }
 
     lines.push("");
-    lines.push("Timestamp,Action,Resource,Description,IP,User");
+    lines.push("Residual Responsibility");
+    for (const responsibility of report.residualResponsibilities) {
+      lines.push(`"${responsibility}"`);
+    }
+
+    lines.push("");
+    lines.push("Policy Title,Rule ID,Kind,Status,Severity,Mode,Priority,Scope");
+    for (const p of report.policyGovernance.policies) {
+      lines.push(
+        `"${p.title}",${p.ruleId},${p.kind},${p.status},${p.severity},${p.enforce ? "blocking" : "advisory"},${p.priority},${p.scope}`
+      );
+    }
+
+    lines.push("");
+    lines.push("Rule Title,Rule ID,Policy Severity,Violations,Errors,Warnings");
+    for (const r of report.violations.byRule) {
+      lines.push(
+        `"${r.ruleTitle}",${r.ruleId},${r.policySeverity ?? ""},${r.count},${r.errors},${r.warnings}`
+      );
+    }
+
+    lines.push("");
+    lines.push("Occurred,Source,Event Type,Evidence,Action,Resource,Description,Repo,Session,IP,User");
     for (const e of report.auditTrail.events) {
       lines.push(
-        `${e.createdAt},${e.action},${e.resourceType},"${e.description}",${e.ipAddress ?? ""},${e.userId ?? ""}`
+        `${e.occurredAt ?? e.createdAt},${e.source ?? ""},${e.eventType ?? ""},${e.evidenceLevel ?? ""},${e.action},${e.resourceType},"${e.description}",${e.repo ?? ""},${e.sessionId ?? ""},${e.ipAddress ?? ""},${e.userId ?? ""}`
       );
     }
 
@@ -206,7 +352,7 @@ export default function ReportsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Compliance Reports</h1>
         <p className="text-sm text-zinc-400 mt-1">
-          Generate audit reports for ISO 27001 and SOC 2 reviews.
+          Generate evidence-backed control reports for ISO 27001, ISO 42001, and SOC 2.
         </p>
       </div>
 
@@ -271,6 +417,106 @@ export default function ReportsPage() {
             </div>
           </div>
 
+          <Card className="bg-white/[0.02] border-white/5">
+            <CardHeader>
+              <CardTitle className="text-white text-base flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                Control Coverage
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-zinc-500">Covered</p>
+                  <p className="text-2xl font-bold text-emerald-400">
+                    {report.controlMapping.summary.covered}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Partial</p>
+                  <p className="text-2xl font-bold text-amber-400">
+                    {report.controlMapping.summary.partial}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Manual</p>
+                  <p className="text-2xl font-bold text-zinc-300">
+                    {report.controlMapping.summary.manual}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Total Controls</p>
+                  <p className="text-2xl font-bold text-white">
+                    {report.controlMapping.summary.total}
+                  </p>
+                </div>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-white/5">
+                    <TableHead className="text-zinc-400">Control</TableHead>
+                    <TableHead className="text-zinc-400">Status</TableHead>
+                    <TableHead className="text-zinc-400">Framework Mapping</TableHead>
+                    <TableHead className="text-zinc-400">Evidence</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {report.controlMapping.controls.map((control) => (
+                    <TableRow key={control.id} className="border-white/5 align-top">
+                      <TableCell className="text-sm">
+                        <div className="space-y-1">
+                          <div className="text-white">
+                            {control.title}
+                          </div>
+                          <div className="font-mono text-xs text-zinc-500">
+                            {control.id}
+                          </div>
+                          <div className="text-xs text-zinc-500">
+                            {control.capability}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${controlStatusBadgeClass[control.status]}`}
+                          >
+                            {control.status}
+                          </Badge>
+                          <p className="text-xs text-zinc-500">
+                            {control.rationale}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-zinc-400">
+                        <div className="space-y-1">
+                          {control.mappings.map((mapping) => (
+                            <div key={`${control.id}-${mapping.framework}`}>
+                              <span className="text-zinc-200">{mapping.framework}</span>:{" "}
+                              {mapping.area}
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-zinc-400">
+                        <div className="space-y-1">
+                          {control.evidenceSignals.length > 0 ? (
+                            control.evidenceSignals.map((signal) => (
+                              <div key={`${control.id}-${signal}`}>{signal}</div>
+                            ))
+                          ) : (
+                            <div>No direct evidence in selected period</div>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
           {/* A.5 / CC1 — Policy Governance */}
           <Card className="bg-white/[0.02] border-white/5">
             <CardHeader>
@@ -306,8 +552,10 @@ export default function ReportsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-white/5">
-                    <TableHead className="text-zinc-400">Rule</TableHead>
+                    <TableHead className="text-zinc-400">Policy</TableHead>
+                    <TableHead className="text-zinc-400">Kind</TableHead>
                     <TableHead className="text-zinc-400">Status</TableHead>
+                    <TableHead className="text-zinc-400">Severity</TableHead>
                     <TableHead className="text-zinc-400">Priority</TableHead>
                     <TableHead className="text-zinc-400 text-right">
                       Created
@@ -316,16 +564,49 @@ export default function ReportsPage() {
                 </TableHeader>
                 <TableBody>
                   {report.policyGovernance.policies.map((p) => (
-                    <TableRow key={p.ruleId} className="border-white/5">
-                      <TableCell className="text-white text-sm font-mono">
-                        {p.ruleId}
+                    <TableRow key={p.id} className="border-white/5">
+                      <TableCell className="text-sm">
+                        <div className="space-y-1">
+                          <div className="text-white">{p.title}</div>
+                          <div className="font-mono text-xs text-zinc-500">
+                            {p.ruleId}
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={`text-xs ${p.enforce ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/10" : "text-zinc-400 border-white/10"}`}
+                          className="text-xs text-zinc-300 border-white/10 bg-black/20"
                         >
-                          {p.enforce ? "Enforced" : "Disabled"}
+                          {p.kind}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${policyStatusBadgeClass[p.status]}`}
+                          >
+                            {p.status}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={
+                              p.enforce
+                                ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/10"
+                                : "text-zinc-400 border-white/10 bg-black/20"
+                            }
+                          >
+                            {p.enforce ? "blocking" : "advisory"}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${policySeverityBadgeClass[p.severity]}`}
+                        >
+                          {p.severity}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-zinc-400 text-sm">
@@ -464,7 +745,8 @@ export default function ReportsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-white/5">
-                      <TableHead className="text-zinc-400">Rule</TableHead>
+                      <TableHead className="text-zinc-400">Policy</TableHead>
+                      <TableHead className="text-zinc-400">Severity</TableHead>
                       <TableHead className="text-zinc-400 text-right">
                         Count
                       </TableHead>
@@ -479,8 +761,25 @@ export default function ReportsPage() {
                   <TableBody>
                     {report.violations.byRule.map((r) => (
                       <TableRow key={r.ruleId} className="border-white/5">
-                        <TableCell className="text-white text-sm font-mono">
-                          {r.ruleId}
+                        <TableCell className="text-sm">
+                          <div className="space-y-1">
+                            <div className="text-white">{r.ruleTitle}</div>
+                            <div className="font-mono text-xs text-zinc-500">
+                              {r.ruleId}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {r.policySeverity ? (
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${policySeverityBadgeClass[r.policySeverity]}`}
+                            >
+                              {r.policySeverity}
+                            </Badge>
+                          ) : (
+                            <span className="text-zinc-500 text-sm">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-zinc-300 text-sm text-right">
                           {r.count}
@@ -490,6 +789,124 @@ export default function ReportsPage() {
                         </TableCell>
                         <TableCell className="text-amber-400 text-sm text-right">
                           {r.warnings || "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/[0.02] border-white/5">
+            <CardHeader>
+              <CardTitle className="text-white text-base flex items-center gap-2">
+                <Gauge className="h-4 w-4 text-emerald-400" />
+                Review Evidence
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-5 gap-4">
+                <div>
+                  <p className="text-xs text-zinc-500">Total Reviews</p>
+                  <p className="text-2xl font-bold text-white">
+                    {report.reviewEvidence.total}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Passed</p>
+                  <p className="text-2xl font-bold text-emerald-400">
+                    {report.reviewEvidence.passed}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Failed</p>
+                  <p className="text-2xl font-bold text-red-400">
+                    {report.reviewEvidence.failed}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Blocking</p>
+                  <p className="text-2xl font-bold text-orange-400">
+                    {report.reviewEvidence.blockingFailures}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Pass Rate</p>
+                  <p className="text-2xl font-bold text-white">
+                    {report.reviewEvidence.passRate !== null
+                      ? `${report.reviewEvidence.passRate}%`
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/[0.02] border-white/5">
+            <CardHeader>
+              <CardTitle className="text-white text-base flex items-center gap-2">
+                <GitBranch className="h-4 w-4 text-sky-300" />
+                Workflow Evidence
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs text-zinc-500">Snapshots</p>
+                  <p className="text-2xl font-bold text-white">
+                    {report.workflowEvidence.totalSnapshots}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Approved</p>
+                  <p className="text-2xl font-bold text-emerald-400">
+                    {report.workflowEvidence.approvedSnapshots}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Ready</p>
+                  <p className="text-2xl font-bold text-sky-300">
+                    {report.workflowEvidence.readySnapshots}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Blocked</p>
+                  <p className="text-2xl font-bold text-amber-400">
+                    {report.workflowEvidence.blockedSnapshots}
+                  </p>
+                </div>
+              </div>
+              {report.workflowEvidence.recent.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-white/5">
+                      <TableHead className="text-zinc-400">Repo</TableHead>
+                      <TableHead className="text-zinc-400">Phase</TableHead>
+                      <TableHead className="text-zinc-400">Approval</TableHead>
+                      <TableHead className="text-zinc-400">Review</TableHead>
+                      <TableHead className="text-zinc-400 text-right">
+                        Seen
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {report.workflowEvidence.recent.map((row, index) => (
+                      <TableRow key={`${row.sessionId ?? "none"}-${index}`} className="border-white/5">
+                        <TableCell className="text-sm text-white">
+                          {row.repo ?? "—"}
+                        </TableCell>
+                        <TableCell className="text-sm text-zinc-300">
+                          {row.phase}
+                        </TableCell>
+                        <TableCell className="text-sm text-zinc-300">
+                          {row.approvalStatus}
+                        </TableCell>
+                        <TableCell className="text-sm text-zinc-300">
+                          {row.reviewStatus}
+                        </TableCell>
+                        <TableCell className="text-right text-sm text-zinc-500">
+                          {new Date(row.receivedAt).toLocaleString()}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -520,8 +937,9 @@ export default function ReportsPage() {
                   <TableHeader>
                     <TableRow className="border-white/5">
                       <TableHead className="text-zinc-400">
-                        Timestamp
+                        Occurred
                       </TableHead>
+                      <TableHead className="text-zinc-400">Evidence</TableHead>
                       <TableHead className="text-zinc-400">Action</TableHead>
                       <TableHead className="text-zinc-400">
                         Resource
@@ -536,7 +954,27 @@ export default function ReportsPage() {
                     {report.auditTrail.events.map((e) => (
                       <TableRow key={e.id} className="border-white/5">
                         <TableCell className="text-zinc-400 text-sm whitespace-nowrap">
-                          {new Date(e.createdAt).toLocaleString()}
+                          {new Date(e.occurredAt ?? e.createdAt).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {e.evidenceLevel && (
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${e.evidenceLevel === "required" ? "text-red-300 border-red-400/20 bg-red-400/10" : "text-zinc-300 border-white/10 bg-black/20"}`}
+                              >
+                                {e.evidenceLevel}
+                              </Badge>
+                            )}
+                            {e.source && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs text-zinc-300 border-white/10"
+                              >
+                                {e.source}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
@@ -549,8 +987,13 @@ export default function ReportsPage() {
                         <TableCell className="text-zinc-300 text-sm max-w-xs truncate">
                           {e.description}
                         </TableCell>
-                        <TableCell className="text-zinc-500 text-sm font-mono">
-                          {e.ipAddress || "—"}
+                        <TableCell className="text-zinc-500 text-sm">
+                          <div className="max-w-[180px] truncate">
+                            {e.repo || "—"}
+                          </div>
+                          <div className="font-mono text-[11px] text-zinc-600">
+                            {e.sessionId || e.ipAddress || "—"}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -568,8 +1011,20 @@ export default function ReportsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-4">
                 {[
+                  {
+                    label: "Tool Calls",
+                    value: report.telemetry.totalToolCalls,
+                  },
+                  {
+                    label: "Succeeded",
+                    value: report.telemetry.successfulToolCalls,
+                  },
+                  {
+                    label: "Failed",
+                    value: report.telemetry.failedToolCalls,
+                  },
                   { label: "Searches", value: report.telemetry.totalSearches },
                   {
                     label: "Tokens Saved",
@@ -580,19 +1035,47 @@ export default function ReportsPage() {
                     value: report.telemetry.totalResultsReturned,
                   },
                   {
-                    label: "Pushes",
-                    value: report.telemetry.telemetryPushes,
+                    label: "Sessions",
+                    value: report.telemetry.sessionEnds,
                   },
                   {
                     label: "Instances",
                     value: report.telemetry.activeInstances,
                   },
+                  {
+                    label: "Pushes",
+                    value: report.telemetry.telemetryPushes,
+                  },
+                  {
+                    label: "Duration",
+                    value: `${formatNumber(Math.round(report.telemetry.totalDurationMs / 1000))}s`,
+                  },
                 ].map((s) => (
                   <div key={s.label}>
                     <p className="text-xs text-zinc-500">{s.label}</p>
                     <p className="text-xl font-bold text-white">
-                      {formatNumber(s.value)}
+                      {typeof s.value === "number" ? formatNumber(s.value) : s.value}
                     </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/[0.02] border-white/5">
+            <CardHeader>
+              <CardTitle className="text-white text-base">
+                Residual Customer Responsibilities
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {report.residualResponsibilities.map((item) => (
+                  <div
+                    key={item}
+                    className="rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-sm text-zinc-300"
+                  >
+                    {item}
                   </div>
                 ))}
               </div>

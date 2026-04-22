@@ -34,6 +34,38 @@ describe("telemetryPushSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts richer lifecycle counters and tool metrics", () => {
+    const result = telemetryPushSchema.safeParse({
+      ...validPayload,
+      total_tool_calls: 20,
+      successful_tool_calls: 18,
+      failed_tool_calls: 2,
+      total_duration_ms: 1500,
+      session_starts: 1,
+      session_ends: 1,
+      session_duration_ms_total: 60000,
+      session_id: "session_12345678",
+      tool_metrics: {
+        "context.search": {
+          calls: 10,
+          failures: 1,
+          total_duration_ms: 800,
+          total_results_returned: 42,
+          estimated_tokens_saved: 5000,
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects invalid session_id format", () => {
+    const result = telemetryPushSchema.safeParse({
+      ...validPayload,
+      session_id: "bad id",
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects when period_end is before period_start", () => {
     const result = telemetryPushSchema.safeParse({
       ...validPayload,
@@ -78,6 +110,14 @@ describe("telemetryPushSchema", () => {
     const result = telemetryPushSchema.safeParse({
       ...validPayload,
       client_version: "a".repeat(51),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects unknown telemetry fields", () => {
+    const result = telemetryPushSchema.safeParse({
+      ...validPayload,
+      prompt: "show me the code",
     });
     expect(result.success).toBe(false);
   });

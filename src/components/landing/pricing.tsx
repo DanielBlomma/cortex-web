@@ -31,16 +31,18 @@ const plans = [
     period: "per developer / month",
     monthly: null,
     description:
-      "Cloud dashboard for teams. Central rules, analytics, and compliance.",
+      "Governed AI control plane for teams. Policies, workflow evidence, audit, and compliance reporting.",
     cta: "Start Free Trial",
     ctaHref: "/sign-up",
     ctaExternal: false,
     highlighted: true,
     features: [
       "Everything in Community",
-      "Cloud dashboard & analytics",
+      "Governed plan-review-approve workflow",
+      "Cloud dashboard & operational health",
       "Central policy management",
-      "Telemetry aggregation",
+      "Telemetry, review, and audit aggregation",
+      "Compliance control mapping",
       "License management",
       "Role-based access control",
       "SSO / SAML",
@@ -54,7 +56,7 @@ const plans = [
     period: "per year",
     monthly: "$2,200/mo billed monthly",
     description:
-      "Complete offline deployment. Zero network traffic. Built-in AI model.",
+      "Offline governance for restricted environments. Local policies, local evidence, zero network traffic.",
     cta: "Contact Sales",
     ctaHref: "mailto:sales@cortex.dev",
     ctaExternal: true,
@@ -64,6 +66,7 @@ const plans = [
       "Zero network traffic",
       "Built-in AI model",
       "Offline license validation",
+      "Local workflow, review, and audit evidence",
       "Secure package delivery",
       "Dedicated support channel",
       "Custom SLA",
@@ -112,11 +115,7 @@ function PricingCard({ plan }: { plan: (typeof plans)[0] }) {
       </div>
 
       {plan.ctaExternal ? (
-        <a
-          href={plan.ctaHref}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={plan.ctaHref} target="_blank" rel="noopener noreferrer">
           {button}
         </a>
       ) : (
@@ -155,8 +154,9 @@ export function Pricing() {
             Start free, scale with your team
           </h2>
           <p className="text-zinc-400 max-w-lg mx-auto">
-            The Community edition is free and open source. Add cloud governance
-            when your team needs it.
+            Start with local context retrieval, then add governed workflow,
+            policy control, and audit evidence when your team needs enterprise
+            rollout.
           </p>
         </motion.div>
 

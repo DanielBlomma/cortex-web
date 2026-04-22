@@ -82,6 +82,7 @@ export const apiKeys = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull().default("Default"),
+    environment: text("environment").notNull().default("production"),
     keyPrefix: text("key_prefix").notNull(),
     keyHash: text("key_hash").notNull(),
     rawKey: text("raw_key"),
@@ -97,6 +98,7 @@ export const apiKeys = pgTable(
   },
   (t) => [
     index("idx_api_keys_org").on(t.orgId),
+    index("idx_api_keys_org_env").on(t.orgId, t.environment),
     index("idx_api_keys_hash").on(t.keyHash),
   ]
 );
@@ -136,8 +138,22 @@ export const telemetryEvents = pgTable(
     apiKeyId: uuid("api_key_id").references(() => apiKeys.id, {
       onDelete: "set null",
     }),
+    apiKeyEnvironment: text("api_key_environment"),
     periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
     periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    totalToolCalls: integer("total_tool_calls").notNull().default(0),
+    successfulToolCalls: integer("successful_tool_calls").notNull().default(0),
+    failedToolCalls: integer("failed_tool_calls").notNull().default(0),
+    totalDurationMs: bigint("total_duration_ms", { mode: "number" })
+      .notNull()
+      .default(0),
+    sessionStarts: integer("session_starts").notNull().default(0),
+    sessionEnds: integer("session_ends").notNull().default(0),
+    sessionDurationMsTotal: bigint("session_duration_ms_total", {
+      mode: "number",
+    })
+      .notNull()
+      .default(0),
     searches: integer("searches").notNull().default(0),
     relatedLookups: integer("related_lookups").notNull().default(0),
     ruleLookups: integer("rule_lookups").notNull().default(0),
@@ -156,13 +172,16 @@ export const telemetryEvents = pgTable(
       .default(0),
     clientVersion: text("client_version"),
     instanceId: text("instance_id"),
+    sessionId: text("session_id"),
+    toolMetrics: jsonb("tool_metrics"),
     receivedAt: timestamp("received_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
     index("idx_telemetry_org_time").on(t.orgId, t.periodStart),
-    index("idx_telemetry_instance").on(t.orgId, t.instanceId)
+    index("idx_telemetry_instance").on(t.orgId, t.instanceId),
+    index("idx_telemetry_session").on(t.orgId, t.sessionId),
   ]
 );
 
@@ -202,7 +221,11 @@ export const policies = pgTable(
     orgId: text("org_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    title: text("title").notNull().default("Untitled Policy"),
     ruleId: text("rule_id").notNull(),
+    kind: text("kind").notNull().default("custom"),
+    status: text("status").notNull().default("active"),
+    severity: text("severity").notNull().default("block"),
     description: text("description").notNull().default(""),
     priority: integer("priority").notNull().default(50),
     scope: text("scope").notNull().default("global"),
@@ -223,6 +246,7 @@ export const policies = pgTable(
   (t) => [
     uniqueIndex("idx_policies_org_rule").on(t.orgId, t.ruleId),
     index("idx_policies_org").on(t.orgId),
+    index("idx_policies_org_status").on(t.orgId, t.status),
   ]
 );
 
@@ -234,20 +258,34 @@ export const auditLog = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     userId: text("user_id"),
+    apiKeyId: uuid("api_key_id").references(() => apiKeys.id, {
+      onDelete: "set null",
+    }),
+    apiKeyEnvironment: text("api_key_environment"),
+    source: text("source").notNull().default("web"),
     action: text("action").notNull(),
+    eventType: text("event_type"),
+    evidenceLevel: text("evidence_level").notNull().default("diagnostic"),
     resourceType: text("resource_type").notNull(),
     resourceId: text("resource_id"),
+    repo: text("repo"),
+    instanceId: text("instance_id"),
+    sessionId: text("session_id"),
     description: text("description").notNull().default(""),
     metadata: text("metadata"),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
-    index("idx_audit_log_org_time").on(t.orgId, t.createdAt),
+    index("idx_audit_log_org_time").on(t.orgId, t.occurredAt),
     index("idx_audit_log_resource").on(t.orgId, t.resourceType, t.resourceId),
+    index("idx_audit_log_session").on(t.orgId, t.sessionId),
   ]
 );
 
@@ -261,7 +299,10 @@ export const policyViolations = pgTable(
     apiKeyId: uuid("api_key_id").references(() => apiKeys.id, {
       onDelete: "set null",
     }),
+    apiKeyEnvironment: text("api_key_environment"),
     repo: text("repo"),
+    instanceId: text("instance_id"),
+    sessionId: text("session_id"),
     ruleId: text("rule_id").notNull(),
     severity: text("severity").notNull().default("warning"),
     message: text("message").notNull().default(""),
@@ -275,6 +316,7 @@ export const policyViolations = pgTable(
   (t) => [
     index("idx_violations_org_time").on(t.orgId, t.occurredAt),
     index("idx_violations_org_rule").on(t.orgId, t.ruleId),
+    index("idx_violations_org_session").on(t.orgId, t.sessionId),
   ]
 );
 
@@ -288,7 +330,10 @@ export const reviews = pgTable(
     apiKeyId: uuid("api_key_id").references(() => apiKeys.id, {
       onDelete: "set null",
     }),
+    apiKeyEnvironment: text("api_key_environment"),
     repo: text("repo"),
+    instanceId: text("instance_id"),
+    sessionId: text("session_id"),
     policyId: text("policy_id").notNull(),
     pass: boolean("pass").notNull(),
     severity: text("severity").notNull().default("info"),
@@ -302,6 +347,37 @@ export const reviews = pgTable(
   (t) => [
     index("idx_reviews_org_time").on(t.orgId, t.reviewedAt),
     index("idx_reviews_org_policy").on(t.orgId, t.policyId),
+    index("idx_reviews_org_session").on(t.orgId, t.sessionId),
+  ]
+);
+
+export const workflowSnapshots = pgTable(
+  "workflow_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    apiKeyId: uuid("api_key_id").references(() => apiKeys.id, {
+      onDelete: "set null",
+    }),
+    apiKeyEnvironment: text("api_key_environment"),
+    repo: text("repo"),
+    instanceId: text("instance_id"),
+    sessionId: text("session_id"),
+    phase: text("phase").notNull(),
+    approvalStatus: text("approval_status").notNull(),
+    planStatus: text("plan_status").notNull(),
+    reviewStatus: text("review_status").notNull(),
+    blockedReasons: jsonb("blocked_reasons"),
+    snapshot: jsonb("snapshot").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_workflow_snapshots_org_time").on(t.orgId, t.receivedAt),
+    index("idx_workflow_snapshots_org_session").on(t.orgId, t.sessionId),
   ]
 );
 

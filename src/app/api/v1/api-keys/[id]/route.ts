@@ -16,6 +16,12 @@ export async function DELETE(
 
   const owner = await getOwnerId();
   if (!owner) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (owner.role !== "admin") {
+    return NextResponse.json(
+      { error: "Only admins can revoke API keys" },
+      { status: 403 }
+    );
+  }
 
   const { id } = await params;
   if (!UUID_RE.test(id)) {

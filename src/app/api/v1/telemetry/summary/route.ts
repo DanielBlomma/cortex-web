@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { telemetryEvents, policies } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { getOwnerId } from "@/lib/auth/owner";
+import { TELEMETRY_RETENTION_POLICY } from "@/lib/telemetry/retention";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 // Average tokens per context result — used to estimate total token cost
@@ -33,6 +34,13 @@ export async function GET(req: Request) {
   // Aggregate totals from telemetry_events
   const [totals] = await db
     .select({
+      totalToolCalls: sql<number>`coalesce(sum(${telemetryEvents.totalToolCalls}), 0)`,
+      totalSuccessfulToolCalls: sql<number>`coalesce(sum(${telemetryEvents.successfulToolCalls}), 0)`,
+      totalFailedToolCalls: sql<number>`coalesce(sum(${telemetryEvents.failedToolCalls}), 0)`,
+      totalDurationMs: sql<number>`coalesce(sum(${telemetryEvents.totalDurationMs}), 0)`,
+      totalSessionStarts: sql<number>`coalesce(sum(${telemetryEvents.sessionStarts}), 0)`,
+      totalSessionEnds: sql<number>`coalesce(sum(${telemetryEvents.sessionEnds}), 0)`,
+      totalSessionDurationMs: sql<number>`coalesce(sum(${telemetryEvents.sessionDurationMsTotal}), 0)`,
       totalSearches: sql<number>`coalesce(sum(${telemetryEvents.searches}), 0)`,
       totalRelatedLookups: sql<number>`coalesce(sum(${telemetryEvents.relatedLookups}), 0)`,
       totalRuleLookups: sql<number>`coalesce(sum(${telemetryEvents.ruleLookups}), 0)`,
@@ -59,6 +67,10 @@ export async function GET(req: Request) {
   const daily = await db
     .select({
       date: sql<string>`date(${telemetryEvents.periodStart} at time zone 'UTC')`,
+      toolCalls: sql<number>`coalesce(sum(${telemetryEvents.totalToolCalls}), 0)`,
+      successfulToolCalls: sql<number>`coalesce(sum(${telemetryEvents.successfulToolCalls}), 0)`,
+      failedToolCalls: sql<number>`coalesce(sum(${telemetryEvents.failedToolCalls}), 0)`,
+      totalDurationMs: sql<number>`coalesce(sum(${telemetryEvents.totalDurationMs}), 0)`,
       searches: sql<number>`coalesce(sum(${telemetryEvents.searches}), 0)`,
       relatedLookups: sql<number>`coalesce(sum(${telemetryEvents.relatedLookups}), 0)`,
       ruleLookups: sql<number>`coalesce(sum(${telemetryEvents.ruleLookups}), 0)`,
@@ -96,7 +108,15 @@ export async function GET(req: Request) {
   const tokensTotal = estimateTotal(tokensSaved, resultsReturned, reportedTotal);
 
   return NextResponse.json({
+    boundary: TELEMETRY_RETENTION_POLICY,
     totals: {
+      toolCalls: Number(totals?.totalToolCalls ?? 0),
+      successfulToolCalls: Number(totals?.totalSuccessfulToolCalls ?? 0),
+      failedToolCalls: Number(totals?.totalFailedToolCalls ?? 0),
+      totalDurationMs: Number(totals?.totalDurationMs ?? 0),
+      sessionStarts: Number(totals?.totalSessionStarts ?? 0),
+      sessionEnds: Number(totals?.totalSessionEnds ?? 0),
+      sessionDurationMsTotal: Number(totals?.totalSessionDurationMs ?? 0),
       searches: Number(totals?.totalSearches ?? 0),
       relatedLookups: Number(totals?.totalRelatedLookups ?? 0),
       ruleLookups: Number(totals?.totalRuleLookups ?? 0),
@@ -123,6 +143,10 @@ export async function GET(req: Request) {
       const reported = Number(d.tokensTotal);
       return {
         ...d,
+        toolCalls: Number(d.toolCalls),
+        successfulToolCalls: Number(d.successfulToolCalls),
+        failedToolCalls: Number(d.failedToolCalls),
+        totalDurationMs: Number(d.totalDurationMs),
         tokensSaved: saved,
         tokensTotal: estimateTotal(saved, results, reported),
         resultsReturned: results,

@@ -55,8 +55,9 @@ export function DownloadSection() {
           <p className="text-zinc-400 max-w-2xl mx-auto">
             cortex-enterprise runs locally on each developer&apos;s machine. It
             indexes your codebase, gives AI assistants smart context, enforces
-            your organization&apos;s policies, and reports usage back to this
-            dashboard. Source code never leaves the machine.
+            your organization&apos;s policies, guides the governed workflow, and
+            reports evidence back to this dashboard. Source code never leaves
+            the machine.
           </p>
         </motion.div>
 
@@ -145,10 +146,13 @@ export function DownloadSection() {
               </p>
             </div>
             <div>
-              <span className="text-white font-medium">3. Work</span>
+              <span className="text-white font-medium">
+                3. Governed workflow
+              </span>
               <p className="mt-1">
-                AI assistants automatically get better context. Policies enforce
-                in the background. No workflow changes.
+                AI assistants automatically get better context while Cortex
+                records plan, review, approval, and audit evidence for each
+                session.
               </p>
             </div>
           </div>

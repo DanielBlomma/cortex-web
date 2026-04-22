@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { policyViolations } from "@/db/schema";
-import { eq, sql, desc } from "drizzle-orm";
+import { policies, policyViolations } from "@/db/schema";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getOwnerId } from "@/lib/auth/owner";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -34,14 +34,21 @@ export async function GET(req: Request) {
   const byRule = await db
     .select({
       ruleId: policyViolations.ruleId,
+      ruleTitle: policies.title,
+      policySeverity: policies.severity,
+      policyStatus: policies.status,
       count: sql<number>`count(*)`,
       errors: sql<number>`count(*) filter (where ${policyViolations.severity} = 'error')`,
       warnings: sql<number>`count(*) filter (where ${policyViolations.severity} = 'warning')`,
       lastSeen: sql<string>`max(${policyViolations.occurredAt})`,
     })
     .from(policyViolations)
+    .leftJoin(
+      policies,
+      and(eq(policies.orgId, ownerId), eq(policies.ruleId, policyViolations.ruleId))
+    )
     .where(eq(policyViolations.orgId, ownerId))
-    .groupBy(policyViolations.ruleId)
+    .groupBy(policyViolations.ruleId, policies.title, policies.severity, policies.status)
     .orderBy(desc(sql`count(*)`))
     .limit(20);
 
@@ -65,12 +72,19 @@ export async function GET(req: Request) {
       id: policyViolations.id,
       repo: policyViolations.repo,
       ruleId: policyViolations.ruleId,
+      ruleTitle: policies.title,
+      policySeverity: policies.severity,
+      policyStatus: policies.status,
       severity: policyViolations.severity,
       message: policyViolations.message,
       filePath: policyViolations.filePath,
       occurredAt: policyViolations.occurredAt,
     })
     .from(policyViolations)
+    .leftJoin(
+      policies,
+      and(eq(policies.orgId, ownerId), eq(policies.ruleId, policyViolations.ruleId))
+    )
     .where(eq(policyViolations.orgId, ownerId))
     .orderBy(desc(policyViolations.occurredAt))
     .limit(50);
@@ -80,6 +94,9 @@ export async function GET(req: Request) {
     total: Object.values(severityCounts).reduce((a, b) => a + b, 0),
     byRule: byRule.map((r) => ({
       ruleId: r.ruleId,
+      ruleTitle: r.ruleTitle ?? r.ruleId,
+      policySeverity: r.policySeverity ?? null,
+      policyStatus: r.policyStatus ?? null,
       count: Number(r.count),
       errors: Number(r.errors),
       warnings: Number(r.warnings),

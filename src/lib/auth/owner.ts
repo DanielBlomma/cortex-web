@@ -1,7 +1,11 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { db } from "@/db";
-import { organizations, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { memberships, organizations, users } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
+import {
+  normalizeDashboardRole,
+  type DashboardRole,
+} from "@/lib/auth/role";
 
 /**
  * Returns the orgId to scope data queries and ensures the
@@ -10,8 +14,9 @@ import { eq } from "drizzle-orm";
 export async function getOwnerId(): Promise<{
   ownerId: string;
   userId: string;
+  role: DashboardRole;
 } | null> {
-  const { orgId, userId } = await auth();
+  const { orgId, orgRole, userId } = await auth();
 
   if (!userId) return null;
 
@@ -48,5 +53,19 @@ export async function getOwnerId(): Promise<{
     });
   }
 
-  return { ownerId, userId };
+  if (!orgId) {
+    return { ownerId, userId, role: "admin" };
+  }
+
+  const [membership] = await db
+    .select({ role: memberships.role })
+    .from(memberships)
+    .where(and(eq(memberships.orgId, ownerId), eq(memberships.userId, userId)))
+    .limit(1);
+
+  return {
+    ownerId,
+    userId,
+    role: normalizeDashboardRole(membership?.role ?? orgRole),
+  };
 }

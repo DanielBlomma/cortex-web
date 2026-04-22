@@ -22,11 +22,15 @@ describe("violationPushSchema", () => {
   it("accepts optional repo field", () => {
     const result = violationPushSchema.safeParse({
       repo: "my-app",
+      instance_id: "abcdef1234567890",
+      session_id: "session_12345678",
       ...validPayload,
     });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.repo).toBe("my-app");
+      expect(result.data.instance_id).toBe("abcdef1234567890");
+      expect(result.data.session_id).toBe("session_12345678");
     }
   });
 
@@ -111,6 +115,14 @@ describe("violationPushSchema", () => {
   it("rejects repo over 200 chars", () => {
     const result = violationPushSchema.safeParse({
       repo: "x".repeat(201),
+      ...validPayload,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects invalid session_id format", () => {
+    const result = violationPushSchema.safeParse({
+      session_id: "not valid",
       ...validPayload,
     });
     expect(result.success).toBe(false);

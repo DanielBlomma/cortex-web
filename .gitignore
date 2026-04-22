@@ -46,6 +46,12 @@ yarn-error.log*
 .context/cache/
 .context/plan/
 .context/hooks/
+.context/notes/
+.context/watch/
+.context/config.yaml
+.context/rules.yaml
+.context/ontology.cypher
+.claude/settings.local.json
 .npm-cache/
 mcp/.npm-cache/
 mcp/dist/

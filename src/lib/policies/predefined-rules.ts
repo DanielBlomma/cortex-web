@@ -4,6 +4,7 @@ export type PredefinedRule = {
   description: string;
   category: "security" | "quality" | "compliance";
   defaultPriority: number;
+  defaultSeverity: "warning" | "error" | "block";
 };
 
 export const PREDEFINED_RULES: PredefinedRule[] = [
@@ -14,6 +15,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
       "Prevents hardcoded secrets, API keys, and credentials from appearing in generated code.",
     category: "security",
     defaultPriority: 90,
+    defaultSeverity: "block",
   },
   {
     id: "require-code-review",
@@ -22,6 +24,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
       "All AI-generated code changes must be reviewed before merging.",
     category: "quality",
     defaultPriority: 80,
+    defaultSeverity: "block",
   },
   {
     id: "max-file-size",
@@ -30,6 +33,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
       "Limits the size of files generated or modified by AI to prevent oversized outputs.",
     category: "quality",
     defaultPriority: 50,
+    defaultSeverity: "warning",
   },
   {
     id: "no-env-in-prompts",
@@ -38,6 +42,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
       "Prevents environment variable values from being included in AI prompts.",
     category: "security",
     defaultPriority: 85,
+    defaultSeverity: "block",
   },
   {
     id: "no-external-api-calls",
@@ -46,6 +51,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
       "Restricts AI-generated code from making calls to external or unapproved APIs.",
     category: "compliance",
     defaultPriority: 70,
+    defaultSeverity: "error",
   },
   {
     id: "require-test-coverage",
@@ -54,6 +60,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
       "Ensures AI-generated code includes or is accompanied by tests.",
     category: "quality",
     defaultPriority: 60,
+    defaultSeverity: "warning",
   },
   {
     id: "no-license-violations",
@@ -62,6 +69,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
       "Prevents AI from generating code that may violate open-source license terms.",
     category: "compliance",
     defaultPriority: 75,
+    defaultSeverity: "error",
   },
   {
     id: "safe-dependency-versions",
@@ -70,6 +78,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
       "Ensures AI-suggested dependencies use pinned, known-safe versions.",
     category: "security",
     defaultPriority: 65,
+    defaultSeverity: "warning",
   },
   {
     id: "prompt-injection-defense",
@@ -78,6 +87,7 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
       "Detects and flags prompt injection attempts in files, comments, and context passed to AI assistants. Scans for instruction overrides, role-play attacks, delimiter escapes, and encoded payloads.",
     category: "security",
     defaultPriority: 95,
+    defaultSeverity: "block",
   },
 ];
 

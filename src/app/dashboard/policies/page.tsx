@@ -44,8 +44,11 @@ import {
 import type { Policy } from "@/lib/types/policy";
 
 type PolicyDraft = {
+  title: string;
   ruleId: string;
   description: string;
+  status: Policy["status"];
+  severity: Policy["severity"];
   priority: number;
   scope: string;
   enforce: boolean;
@@ -54,8 +57,11 @@ type PolicyDraft = {
 };
 
 const EMPTY_DRAFT: PolicyDraft = {
+  title: "",
   ruleId: "",
   description: "",
+  status: "active",
+  severity: "block",
   priority: 50,
   scope: "global",
   enforce: true,
@@ -72,6 +78,20 @@ const categoryColor: Record<PredefinedRule["category"], string> = {
 const enforceBadgeClass = {
   true: "text-emerald-400 border-emerald-400/20 bg-emerald-400/10",
   false: "text-zinc-400 border-white/10 bg-black/20",
+};
+
+const statusBadgeClass: Record<Policy["status"], string> = {
+  active: "text-emerald-400 border-emerald-400/20 bg-emerald-400/10",
+  draft: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  disabled: "text-zinc-400 border-white/10 bg-black/20",
+  archived: "text-zinc-500 border-white/10 bg-black/30",
+};
+
+const severityBadgeClass: Record<Policy["severity"], string> = {
+  block: "text-red-400 border-red-400/20 bg-red-400/10",
+  error: "text-orange-400 border-orange-400/20 bg-orange-400/10",
+  warning: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  info: "text-sky-300 border-sky-400/20 bg-sky-400/10",
 };
 
 async function readErrorMessage(res: Response, fallback: string) {
@@ -199,6 +219,18 @@ function EvaluatorFieldInput({
   return null;
 }
 
+function timeAgo(dateStr: string | null | undefined): string {
+  if (!dateStr) return "never";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export default function PoliciesPage() {
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,8 +275,11 @@ export default function PoliciesPage() {
   const openEditDialog = (policy: Policy) => {
     setEditingPolicy(policy);
     setDraft({
+      title: policy.title,
       ruleId: policy.ruleId,
       description: policy.description,
+      status: policy.status,
+      severity: policy.severity,
       priority: policy.priority,
       scope: policy.scope,
       enforce: policy.enforce,
@@ -291,11 +326,15 @@ export default function PoliciesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          title: rule.name,
           ruleId: rule.id,
+          kind: "predefined",
+          status: "active",
+          severity: rule.defaultSeverity,
           description: rule.description,
           priority: rule.defaultPriority,
           scope: "global",
-          enforce: true,
+          enforce: rule.defaultSeverity === "block",
         }),
       });
 
@@ -338,6 +377,33 @@ export default function PoliciesPage() {
     }
   };
 
+  const toggleStatus = async (policy: Policy) => {
+    const actionKey = `status:${policy.id}`;
+    setBusyKey(actionKey);
+
+    try {
+      const res = await fetch(`/api/v1/policies/${policy.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: policy.status === "active" ? "disabled" : "active",
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, "Failed to update status"));
+      }
+
+      await fetchPolicies();
+    } catch (error) {
+      setPageError(
+        error instanceof Error ? error.message : "Failed to update status"
+      );
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   const submitPolicy = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
@@ -350,13 +416,22 @@ export default function PoliciesPage() {
         : `custom:${draft.ruleId.trim()}`;
 
     const payload = {
+      title: draft.title.trim() || draft.ruleId.trim(),
       ruleId,
       description: draft.description.trim(),
+      status: draft.status,
+      severity: draft.severity,
       priority: Number(draft.priority),
       scope: draft.scope.trim() || "global",
       enforce: draft.enforce,
       type: draft.type,
-      config: draft.type ? draft.config : null,
+      config:
+        draft.type
+          ? {
+              ...draft.config,
+              ...(draft.severity === "block" ? {} : { severity: draft.severity }),
+            }
+          : null,
     };
 
     try {
@@ -370,7 +445,10 @@ export default function PoliciesPage() {
           body: JSON.stringify(
             editingPolicy
               ? {
+                  title: payload.title,
                   description: payload.description,
+                  status: payload.status,
+                  severity: payload.severity,
                   priority: payload.priority,
                   scope: payload.scope,
                   enforce: payload.enforce,
@@ -412,6 +490,7 @@ export default function PoliciesPage() {
   const selectedPolicies = [...policies].sort((a, b) =>
     a.ruleId.localeCompare(b.ruleId)
   );
+  const activePolicies = selectedPolicies.filter((policy) => policy.status === "active");
   const customPolicies = selectedPolicies.filter(
     (policy) => !isPredefinedRule(policy.ruleId)
   );
@@ -447,11 +526,11 @@ export default function PoliciesPage() {
             <p className="text-sm text-zinc-400">
               {selectedPolicies.length === 0
                 ? "No policies selected yet."
-                : `${selectedPolicies.length} selected rule${selectedPolicies.length === 1 ? "" : "s"} across your organization.`}
+                : `${selectedPolicies.length} configured polic${selectedPolicies.length === 1 ? "y" : "ies"}, ${activePolicies.length} active.`}
             </p>
-            {selectedPolicies.length > 0 && (
+            {activePolicies.length > 0 && (
               <Badge variant="secondary" className="text-xs">
-                {selectedPolicies.length} active
+                {activePolicies.length} active
               </Badge>
             )}
           </div>
@@ -523,7 +602,7 @@ export default function PoliciesPage() {
                           </div>
                           <CardTitle className="flex items-center gap-2 text-sm text-white">
                             <Shield className="h-4 w-4 text-zinc-400" />
-                            {rule.name}
+                            {policy?.title ?? rule.name}
                           </CardTitle>
                           <p className="font-mono text-[11px] text-zinc-500">
                             {rule.id}
@@ -543,19 +622,41 @@ export default function PoliciesPage() {
                           {policy?.scope ?? "global"}
                         </Badge>
                         {policy && (
-                          <button
-                            type="button"
-                            onClick={() => void toggleEnforce(policy)}
-                            disabled={busyKey === `enforce:${policy.id}`}
-                            className="cursor-pointer"
-                          >
+                          <>
                             <Badge
                               variant="outline"
-                              className={`text-xs ${enforceBadgeClass[String(policy.enforce) as "true" | "false"]}`}
+                              className={`text-xs ${statusBadgeClass[policy.status]}`}
                             >
-                              {policy.enforce ? "Enforced" : "Disabled"}
+                              {policy.status}
                             </Badge>
-                          </button>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${severityBadgeClass[policy.severity]}`}
+                            >
+                              {policy.severity}
+                            </Badge>
+                            <button
+                              type="button"
+                              onClick={() => void toggleEnforce(policy)}
+                              disabled={busyKey === `enforce:${policy.id}`}
+                              className="cursor-pointer"
+                            >
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${enforceBadgeClass[String(policy.enforce) as "true" | "false"]}`}
+                              >
+                                {policy.enforce ? "Blocking" : "Advisory"}
+                              </Badge>
+                            </button>
+                            {policy.recentlyTriggered && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs text-red-300 border-red-400/20 bg-red-400/10"
+                              >
+                                Triggered {timeAgo(policy.lastTriggeredAt)}
+                              </Badge>
+                            )}
+                          </>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -568,6 +669,14 @@ export default function PoliciesPage() {
                             >
                               <Pencil className="mr-1 h-3.5 w-3.5" />
                               Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => void toggleStatus(policy)}
+                              disabled={busyKey === `status:${policy.id}`}
+                            >
+                              {policy.status === "active" ? "Disable" : "Activate"}
                             </Button>
                             <Button
                               size="sm"
@@ -676,7 +785,7 @@ export default function PoliciesPage() {
                           </Badge>
                         </div>
                         <CardTitle className="text-sm text-white">
-                          {policy.ruleId.replace(/^custom:/, "")}
+                          {policy.title}
                         </CardTitle>
                         <p className="font-mono text-[11px] text-zinc-500">
                           {policy.ruleId}
@@ -696,9 +805,26 @@ export default function PoliciesPage() {
                     <p className="text-sm text-zinc-400">
                       {policy.description || "No description provided yet."}
                     </p>
+                    <div className="flex flex-wrap gap-2 text-xs text-zinc-500">
+                      <span>{policy.reviewFailureCount ?? 0} blocking review failures</span>
+                      <span>{policy.warningReviewCount ?? 0} warnings</span>
+                      <span>{policy.violationCount ?? 0} violations</span>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="secondary" className="text-xs">
                         {policy.scope}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${statusBadgeClass[policy.status]}`}
+                      >
+                        {policy.status}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${severityBadgeClass[policy.severity]}`}
+                      >
+                        {policy.severity}
                       </Badge>
                       <button
                         type="button"
@@ -710,9 +836,17 @@ export default function PoliciesPage() {
                           variant="outline"
                           className={`text-xs ${enforceBadgeClass[String(policy.enforce) as "true" | "false"]}`}
                         >
-                          {policy.enforce ? "Enforced" : "Disabled"}
+                          {policy.enforce ? "Blocking" : "Advisory"}
                         </Badge>
                       </button>
+                      {policy.recentlyTriggered && (
+                        <Badge
+                          variant="outline"
+                          className="text-xs text-red-300 border-red-400/20 bg-red-400/10"
+                        >
+                          Triggered {timeAgo(policy.lastTriggeredAt)}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -722,6 +856,14 @@ export default function PoliciesPage() {
                       >
                         <Pencil className="mr-1 h-3.5 w-3.5" />
                         Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void toggleStatus(policy)}
+                        disabled={busyKey === `status:${policy.id}`}
+                      >
+                        {policy.status === "active" ? "Disable" : "Activate"}
                       </Button>
                       <Button
                         size="sm"
@@ -772,6 +914,22 @@ export default function PoliciesPage() {
           )}
 
           <form onSubmit={submitPolicy} className="space-y-4">
+            <div>
+              <Label className="text-zinc-300">Title</Label>
+              <Input
+                placeholder="Human-readable policy name"
+                value={draft.title}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                className="mt-1 border-white/10 bg-black/30"
+                required
+              />
+            </div>
+
             <div>
               <Label className="text-zinc-300">Rule ID</Label>
               {editingPolicy ? (
@@ -849,6 +1007,62 @@ export default function PoliciesPage() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-zinc-300">Status</Label>
+                <Select
+                  value={draft.status}
+                  onValueChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      status: (value ?? current.status) as Policy["status"],
+                    }))
+                  }
+                >
+                  <SelectTrigger className="mt-1 w-full border-white/10 bg-black/30">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="disabled">Disabled</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-zinc-300">Severity</Label>
+                <Select
+                  value={draft.severity}
+                  onValueChange={(value) =>
+                    setDraft((current) => ({
+                      ...current,
+                      severity: (value ?? current.severity) as Policy["severity"],
+                      config:
+                        current.type
+                          ? {
+                              ...current.config,
+                              ...((value ?? current.severity) === "block"
+                                ? {}
+                                : { severity: value ?? current.severity }),
+                            }
+                          : current.config,
+                    }))
+                  }
+                >
+                  <SelectTrigger className="mt-1 w-full border-white/10 bg-black/30">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="block">Block</SelectItem>
+                    <SelectItem value="error">Error</SelectItem>
+                    <SelectItem value="warning">Warning</SelectItem>
+                    <SelectItem value="info">Info</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -864,11 +1078,11 @@ export default function PoliciesPage() {
                   variant="outline"
                   className={`text-xs ${enforceBadgeClass[String(draft.enforce) as "true" | "false"]}`}
                 >
-                  {draft.enforce ? "Enforced" : "Disabled"}
+                  {draft.enforce ? "Blocking" : "Advisory"}
                 </Badge>
               </button>
               <span className="text-xs text-zinc-500">
-                Click to toggle enforcement
+                Controls whether the synced policy exports as enforced or advisory
               </span>
             </div>
 

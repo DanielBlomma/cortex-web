@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { reviews } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { verifyHmac } from "@/lib/hmac";
+import { logAudit } from "@/lib/audit/log";
 import { reviewPushSchema } from "@/lib/validators/review";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -71,11 +72,16 @@ export async function POST(req: Request) {
   }
 
   const repo = parsed.data.repo ?? null;
+  const instanceId = parsed.data.instance_id ?? null;
+  const sessionId = parsed.data.session_id ?? null;
 
   const rows = parsed.data.reviews.map((r) => ({
     orgId: key.orgId,
     apiKeyId: key.id,
+    apiKeyEnvironment: key.environment,
     repo,
+    instanceId,
+    sessionId,
     policyId: r.policy_id,
     pass: r.pass,
     severity: r.severity,
@@ -93,6 +99,23 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
+  logAudit({
+    orgId: key.orgId,
+    action: "push",
+    resourceType: "review",
+    resourceId: key.id,
+    description: `Review push accepted for ${key.environment}`,
+    metadata: {
+      api_key_id: key.id,
+      environment: key.environment,
+      instance_id: instanceId,
+      session_id: sessionId,
+      review_count: rows.length,
+      repo,
+    },
+    req,
+  });
 
   return NextResponse.json({ ok: true, count: rows.length });
 }

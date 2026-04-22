@@ -16,6 +16,7 @@ export async function verifyApiKey(rawKey: string) {
     .select({
       id: apiKeys.id,
       orgId: apiKeys.orgId,
+      environment: apiKeys.environment,
       scopes: apiKeys.scopes,
       hmacSecret: apiKeys.hmacSecret,
       expiresAt: apiKeys.expiresAt,

@@ -7,10 +7,12 @@ import { OrganizationProfile } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import {
   LayoutDashboard,
+  Rocket,
   BarChart3,
   ShieldCheck,
   ShieldAlert,
   ClipboardCheck,
+  ScrollText,
   Key,
   CreditCard,
   FileText,
@@ -26,10 +28,16 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/dashboard/rollout", label: "Rollout", icon: Rocket },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/dashboard/violations", label: "Policy Violations", icon: ShieldAlert },
+  {
+    href: "/dashboard/violations",
+    label: "Policy Violations",
+    icon: ShieldAlert,
+  },
   { href: "/dashboard/reviews", label: "Policy Reviews", icon: ClipboardCheck },
   { href: "/dashboard/policies", label: "Policies / Rules", icon: ShieldCheck },
+  { href: "/dashboard/audit", label: "Audit Trail", icon: ScrollText },
   { href: "/dashboard/reports", label: "Compliance", icon: FileText },
   { href: "/dashboard/api-keys", label: "Access", icon: Key },
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
@@ -62,7 +70,7 @@ export function Sidebar() {
                   "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
                   isActive
                     ? "bg-white/5 text-white"
-                    : "text-zinc-400 hover:text-white hover:bg-white/[0.03]"
+                    : "text-zinc-400 hover:text-white hover:bg-white/[0.03]",
                 )}
               >
                 <item.icon className="h-4 w-4" />
@@ -75,7 +83,7 @@ export function Sidebar() {
             onClick={() => setSettingsOpen(true)}
             className={cn(
               "flex w-full items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer",
-              "text-zinc-400 hover:text-white hover:bg-white/[0.03]"
+              "text-zinc-400 hover:text-white hover:bg-white/[0.03]",
             )}
           >
             <Settings className="h-4 w-4" />

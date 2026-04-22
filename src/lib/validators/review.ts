@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const SESSION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/;
+
 const reviewItem = z.object({
   policy_id: z
     .string()
@@ -15,6 +17,8 @@ const reviewItem = z.object({
 
 export const reviewPushSchema = z.object({
   repo: z.string().max(200).optional(),
+  instance_id: z.string().max(64).regex(/^[a-f0-9]+$/).optional(),
+  session_id: z.string().max(64).regex(SESSION_ID_RE).optional(),
   reviews: z.array(reviewItem).min(1).max(100),
 });
 

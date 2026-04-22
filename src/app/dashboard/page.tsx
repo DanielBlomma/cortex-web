@@ -12,10 +12,17 @@ import {
   ArrowRight,
   Package,
   AlertTriangle,
+  HeartPulse,
+  RefreshCw,
+  ClipboardCheck,
+  CheckCircle2,
+  CircleDot,
+  AlertCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import type { Policy } from "@/lib/types/policy";
 
 type Totals = {
   searches: number;
@@ -45,6 +52,9 @@ type ViolationSummary = {
   recent: {
     id: string;
     ruleId: string;
+    ruleTitle: string;
+    policySeverity: Policy["severity"] | null;
+    policyStatus: Policy["status"] | null;
     severity: string;
     message: string;
     repo: string | null;
@@ -61,11 +71,40 @@ type ApiKey = {
   createdAt: string;
 };
 
-type Policy = {
-  id: string;
-  ruleId: string;
-  description: string;
-  enforce: boolean;
+type OperationsSignal = {
+  id: "policy" | "sync" | "telemetry" | "reviews";
+  label: string;
+  status: "healthy" | "warning" | "critical";
+  summary: string;
+  detail: string;
+  href: string;
+  metric: string;
+  updatedAt: string | null;
+};
+
+type OperationsSummary = {
+  generatedAt: string;
+  summary: {
+    package: {
+      plan: string;
+      activeApiKeys: number;
+      activeInstances: number;
+      distinctVersions: number;
+    };
+    signals: {
+      policyHealth: OperationsSignal;
+      syncStatus: OperationsSignal;
+      telemetryHealth: OperationsSignal;
+      reviewCoverage: OperationsSignal;
+    };
+    checklist: {
+      id: string;
+      title: string;
+      status: "complete" | "attention" | "pending";
+      detail: string;
+      href: string;
+    }[];
+  };
 };
 
 function formatNumber(n: number): string {
@@ -85,25 +124,59 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`;
 }
 
+const policyStatusBadgeClass: Record<Policy["status"], string> = {
+  active: "text-emerald-400 border-emerald-400/20 bg-emerald-400/10",
+  draft: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  disabled: "text-zinc-400 border-white/10 bg-black/20",
+  archived: "text-zinc-500 border-white/10 bg-black/30",
+};
+
+const policySeverityBadgeClass: Record<Policy["severity"], string> = {
+  block: "text-red-400 border-red-400/20 bg-red-400/10",
+  error: "text-orange-400 border-orange-400/20 bg-orange-400/10",
+  warning: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  info: "text-sky-300 border-sky-400/20 bg-sky-400/10",
+};
+
+const operationsBadgeClass: Record<OperationsSignal["status"], string> = {
+  healthy: "text-emerald-400 border-emerald-400/20 bg-emerald-400/10",
+  warning: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  critical: "text-red-400 border-red-400/20 bg-red-400/10",
+};
+
+const checklistBadgeClass: Record<
+  OperationsSummary["summary"]["checklist"][number]["status"],
+  string
+> = {
+  complete: "text-emerald-400 border-emerald-400/20 bg-emerald-400/10",
+  attention: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  pending: "text-zinc-400 border-white/10 bg-black/20",
+};
+
 export default function DashboardPage() {
   const [telemetry, setTelemetry] = useState<TelemetrySummary | null>(null);
   const [violations, setViolations] = useState<ViolationSummary | null>(null);
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
+  const [operations, setOperations] = useState<OperationsSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
-    const [telRes, violRes, keysRes, polRes] = await Promise.allSettled([
-      fetch("/api/v1/telemetry/summary").then((r) => r.json()),
-      fetch("/api/v1/violations/summary").then((r) => r.json()),
-      fetch("/api/v1/api-keys").then((r) => r.json()),
-      fetch("/api/v1/policies").then((r) => r.json()),
-    ]);
+    const [telRes, violRes, keysRes, polRes, operationsRes] =
+      await Promise.allSettled([
+        fetch("/api/v1/telemetry/summary").then((r) => r.json()),
+        fetch("/api/v1/violations/summary").then((r) => r.json()),
+        fetch("/api/v1/api-keys").then((r) => r.json()),
+        fetch("/api/v1/policies").then((r) => r.json()),
+        fetch("/api/v1/operations/summary").then((r) => r.json()),
+      ]);
 
     if (telRes.status === "fulfilled") setTelemetry(telRes.value);
     if (violRes.status === "fulfilled") setViolations(violRes.value);
     if (keysRes.status === "fulfilled") setKeys(keysRes.value.keys ?? []);
     if (polRes.status === "fulfilled") setPolicies(polRes.value.policies ?? []);
+    if (operationsRes.status === "fulfilled")
+      setOperations(operationsRes.value);
     setLoading(false);
   }, []);
 
@@ -113,6 +186,14 @@ export default function DashboardPage() {
 
   const totals = telemetry?.totals;
   const hasData = totals && totals.eventCount > 0;
+  const operationalSignals = operations
+    ? [
+        operations.summary.signals.policyHealth,
+        operations.summary.signals.syncStatus,
+        operations.summary.signals.telemetryHealth,
+        operations.summary.signals.reviewCoverage,
+      ]
+    : [];
 
   const daily = telemetry?.daily ?? [];
   const maxSearches = Math.max(...daily.map((d) => Number(d.searches)), 1);
@@ -124,6 +205,114 @@ export default function DashboardPage() {
         <p className="text-sm text-zinc-400 mt-1">
           Your organization&apos;s Cortex status at a glance.
         </p>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-4">
+        <Card className="bg-white/[0.02] border-white/5">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-white text-base flex items-center gap-2">
+              <HeartPulse className="h-4 w-4 text-zinc-400" />
+              Operational Health
+            </CardTitle>
+            {operations?.summary.package && (
+              <Badge
+                variant="outline"
+                className="text-zinc-300 border-white/10 bg-black/20"
+              >
+                {operations.summary.package.plan}
+              </Badge>
+            )}
+          </CardHeader>
+          <CardContent>
+            {operationalSignals.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {operationalSignals.map((signal) => (
+                  <Link
+                    key={signal.id}
+                    href={signal.href}
+                    className="rounded-xl border border-white/5 bg-black/20 p-4 hover:border-white/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={operationsBadgeClass[signal.status]}
+                      >
+                        {signal.status}
+                      </Badge>
+                      <span className="text-sm font-medium text-white">
+                        {signal.label}
+                      </span>
+                      <span className="ml-auto text-xs text-zinc-500">
+                        {signal.metric}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-zinc-200">
+                      {signal.summary}
+                    </p>
+                    <p className="mt-2 text-xs text-zinc-500">
+                      {signal.detail}
+                    </p>
+                    {signal.updatedAt && (
+                      <div className="mt-3 flex items-center gap-1 text-[11px] text-zinc-600">
+                        <RefreshCw className="h-3 w-3" />
+                        Updated {timeAgo(signal.updatedAt)}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-600">
+                Operational health will appear after the first enterprise sync.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/[0.02] border-white/5">
+          <CardHeader>
+            <CardTitle className="text-white text-base flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4 text-zinc-400" />
+              Rollout Checklist
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {operations?.summary.checklist?.length ? (
+              <div className="space-y-3">
+                {operations.summary.checklist.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className="block rounded-lg border border-white/5 bg-black/20 px-3 py-3 hover:border-white/10 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      {item.status === "complete" ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      ) : item.status === "attention" ? (
+                        <AlertCircle className="h-4 w-4 text-amber-400" />
+                      ) : (
+                        <CircleDot className="h-4 w-4 text-zinc-500" />
+                      )}
+                      <span className="text-sm text-white">{item.title}</span>
+                      <Badge
+                        variant="outline"
+                        className={`ml-auto ${checklistBadgeClass[item.status]}`}
+                      >
+                        {item.status}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-xs text-zinc-500">{item.detail}</p>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-600">
+                Rollout checklist data will appear once the first API key is
+                provisioned.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Top stats row */}
@@ -159,10 +348,7 @@ export default function DashboardPage() {
                     <span className="text-2xl font-bold text-emerald-400">
                       {Math.round(
                         totals.tokensTotal /
-                          Math.max(
-                            totals.tokensTotal - totals.tokensSaved,
-                            1
-                          )
+                          Math.max(totals.tokensTotal - totals.tokensSaved, 1),
                       )}
                       x
                     </span>
@@ -178,10 +364,7 @@ export default function DashboardPage() {
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Cortex search:</span>
                       <span className="text-emerald-400">
-                        ~
-                        {formatNumber(
-                          totals.tokensTotal - totals.tokensSaved
-                        )}{" "}
+                        ~{formatNumber(totals.tokensTotal - totals.tokensSaved)}{" "}
                         tokens
                       </span>
                     </div>
@@ -196,7 +379,7 @@ export default function DashboardPage() {
                   </div>
                   <p className="text-xs text-emerald-400 text-right">
                     {Math.round(
-                      (totals.tokensSaved / totals.tokensTotal) * 100
+                      (totals.tokensSaved / totals.tokensTotal) * 100,
                     )}
                     % less tokens
                   </p>
@@ -206,9 +389,7 @@ export default function DashboardPage() {
                   <div className="text-2xl font-bold text-emerald-400">
                     ~{formatNumber(totals.tokensSaved)}
                   </div>
-                  <p className="text-xs text-zinc-500">
-                    tokens saved total
-                  </p>
+                  <p className="text-xs text-zinc-500">tokens saved total</p>
                 </div>
               )
             ) : (
@@ -283,7 +464,7 @@ export default function DashboardPage() {
                 {daily.map((d) => {
                   const height = Math.max(
                     (Number(d.searches) / maxSearches) * 100,
-                    2
+                    2,
                   );
                   return (
                     <div
@@ -304,9 +485,7 @@ export default function DashboardPage() {
                 })}
               </div>
             ) : (
-              <p className="text-sm text-zinc-600">
-                No telemetry data yet.
-              </p>
+              <p className="text-sm text-zinc-600">No telemetry data yet.</p>
             )}
           </CardContent>
         </Card>
@@ -366,28 +545,57 @@ export default function DashboardPage() {
                 {violations.recent.slice(0, 3).map((v) => (
                   <div
                     key={v.id}
-                    className="flex items-center gap-2 text-xs"
+                    className="rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-xs"
                   >
-                    <Badge
-                      variant="outline"
-                      className={
-                        v.severity === "error"
-                          ? "text-red-400 border-red-400/20 bg-red-400/10"
-                          : v.severity === "warning"
-                            ? "text-amber-400 border-amber-400/20 bg-amber-400/10"
-                            : "text-blue-400 border-blue-400/20 bg-blue-400/10"
-                      }
-                    >
-                      {v.severity}
-                    </Badge>
-                    <span className="text-zinc-400 font-mono truncate">
-                      {v.ruleId}
-                    </span>
-                    {v.repo && (
-                      <span className="text-zinc-600 ml-auto truncate max-w-[120px]">
-                        {v.repo}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        className={
+                          v.severity === "error"
+                            ? "text-red-400 border-red-400/20 bg-red-400/10"
+                            : v.severity === "warning"
+                              ? "text-amber-400 border-amber-400/20 bg-amber-400/10"
+                              : "text-blue-400 border-blue-400/20 bg-blue-400/10"
+                        }
+                      >
+                        {v.severity}
+                      </Badge>
+                      {v.policyStatus && (
+                        <Badge
+                          variant="outline"
+                          className={policyStatusBadgeClass[v.policyStatus]}
+                        >
+                          {v.policyStatus}
+                        </Badge>
+                      )}
+                      {v.policySeverity && (
+                        <Badge
+                          variant="outline"
+                          className={policySeverityBadgeClass[v.policySeverity]}
+                        >
+                          {v.policySeverity}
+                        </Badge>
+                      )}
+                      <span className="text-zinc-500 ml-auto">
+                        {timeAgo(v.occurredAt)}
                       </span>
-                    )}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="truncate text-zinc-200">
+                        {v.ruleTitle}
+                      </span>
+                      <span className="truncate font-mono text-zinc-500">
+                        {v.ruleId}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-zinc-500">
+                      <span className="truncate">{v.message}</span>
+                      {v.repo && (
+                        <span className="ml-auto truncate max-w-[120px]">
+                          {v.repo}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -411,7 +619,7 @@ export default function DashboardPage() {
           <CardContent>
             {(() => {
               const known = telemetry?.versions?.filter(
-                (v) => v.version !== "unknown"
+                (v) => v.version !== "unknown",
               );
               if (known && known.length > 0) {
                 return (
@@ -444,8 +652,7 @@ export default function DashboardPage() {
                   {total > 0 ? (
                     <>
                       <p className="text-sm text-zinc-400">
-                        {total} active{" "}
-                        {total === 1 ? "instance" : "instances"}
+                        {total} active {total === 1 ? "instance" : "instances"}
                       </p>
                       <p className="text-xs text-zinc-600">
                         Update cortex-enterprise to v0.2+ to report version
@@ -534,21 +741,51 @@ export default function DashboardPage() {
                 {policies.slice(0, 5).map((p) => (
                   <div
                     key={p.id}
-                    className="flex items-center justify-between text-sm"
+                    className="rounded-lg border border-white/5 bg-black/20 px-3 py-2"
                   >
-                    <span className="text-white font-mono text-xs truncate">
-                      {p.ruleId}
-                    </span>
-                    <Badge
-                      variant="outline"
-                      className={
-                        p.enforce
-                          ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/10"
-                          : "text-zinc-500 border-white/5 bg-white/5"
-                      }
-                    >
-                      {p.enforce ? "enforced" : "disabled"}
-                    </Badge>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm text-white">
+                          {p.title}
+                        </span>
+                        <span className="truncate font-mono text-[11px] text-zinc-500">
+                          {p.ruleId}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge
+                          variant="outline"
+                          className={policyStatusBadgeClass[p.status]}
+                        >
+                          {p.status}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={policySeverityBadgeClass[p.severity]}
+                        >
+                          {p.severity}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={
+                            p.enforce
+                              ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/10"
+                              : "text-zinc-400 border-white/10 bg-black/20"
+                          }
+                        >
+                          {p.enforce ? "blocking" : "advisory"}
+                        </Badge>
+                        {p.recentlyTriggered && (
+                          <Badge
+                            variant="outline"
+                            className="text-red-300 border-red-400/20 bg-red-400/10"
+                          >
+                            triggered{" "}
+                            {timeAgo(p.lastTriggeredAt ?? p.createdAt)}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ))}
                 {policies.length > 5 && (
@@ -565,56 +802,59 @@ export default function DashboardPage() {
       </div>
 
       {/* Token savings bar — only show when we have real reported data */}
-      {hasData && totals.tokensReported && totals.tokensSaved > 0 && totals.tokensTotal > 0 && (
-        <Card className="bg-white/[0.02] border-white/5">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-emerald-400" />
-                <span className="text-sm font-medium text-white">
-                  Token Savings
-                </span>
+      {hasData &&
+        totals.tokensReported &&
+        totals.tokensSaved > 0 &&
+        totals.tokensTotal > 0 && (
+          <Card className="bg-white/[0.02] border-white/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-emerald-400" />
+                  <span className="text-sm font-medium text-white">
+                    Token Savings
+                  </span>
+                </div>
+                <div className="text-right text-sm">
+                  <span className="text-emerald-400 font-bold">
+                    {Math.round(
+                      (totals.tokensSaved / totals.tokensTotal) * 100,
+                    )}
+                    %
+                  </span>
+                  <span className="text-zinc-500 ml-2">
+                    {formatNumber(totals.tokensSaved)} of{" "}
+                    {formatNumber(totals.tokensTotal)}
+                  </span>
+                </div>
               </div>
-              <div className="text-right text-sm">
-                <span className="text-emerald-400 font-bold">
-                  {Math.round(
-                    (totals.tokensSaved / totals.tokensTotal) * 100
-                  )}
-                  %
-                </span>
-                <span className="text-zinc-500 ml-2">
-                  {formatNumber(totals.tokensSaved)} of{" "}
-                  {formatNumber(totals.tokensTotal)}
-                </span>
+              <div className="h-3 rounded-full bg-white/5 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500"
+                  style={{
+                    width: `${Math.round((totals.tokensSaved / totals.tokensTotal) * 100)}%`,
+                  }}
+                />
               </div>
-            </div>
-            <div className="h-3 rounded-full bg-white/5 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500"
-                style={{
-                  width: `${Math.round((totals.tokensSaved / totals.tokensTotal) * 100)}%`,
-                }}
-              />
-            </div>
-            <div className="flex items-center gap-4 mt-2 text-xs text-zinc-500">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-sm bg-emerald-400" />
-                Saved
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block h-2 w-2 rounded-sm bg-white/10" />
-                Used
-              </span>
-              <Link
-                href="/dashboard/analytics"
-                className="ml-auto hover:text-white flex items-center gap-1"
-              >
-                Full analytics <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              <div className="flex items-center gap-4 mt-2 text-xs text-zinc-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-sm bg-emerald-400" />
+                  Saved
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-sm bg-white/10" />
+                  Used
+                </span>
+                <Link
+                  href="/dashboard/analytics"
+                  className="ml-auto hover:text-white flex items-center gap-1"
+                >
+                  Full analytics <ArrowRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }

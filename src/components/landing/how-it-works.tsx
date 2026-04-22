@@ -17,15 +17,23 @@ const steps = [
     description:
       "Point the local instance at your dashboard with an API key. Rules sync down, usage stats flow up. Source code stays local.",
     code: `# .context/enterprise.yaml
+enterprise:
+  endpoint: https://your-portal.com
+  api_key: ctx_7kR4mNpQ2xYz...
+
 telemetry:
   endpoint: https://your-portal.com/api/v1/telemetry/push
+  api_key: ctx_7kR4mNpQ2xYz...
+
+policy:
+  endpoint: https://your-portal.com/api/v1/policies/sync
   api_key: ctx_7kR4mNpQ2xYz...`,
   },
   {
     step: "03",
-    title: "Manage from one place",
+    title: "Run the governed workflow",
     description:
-      "Write organization rules, see usage across all teams, generate licenses, and maintain audit trails — all from one dashboard.",
+      "Teams plan, review, implement, iterate, and approve through Cortex. The dashboard tracks policy health, evidence, and rollout readiness across the organization.",
     code: null,
   },
 ];

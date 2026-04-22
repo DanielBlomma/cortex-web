@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { policyViolations } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { verifyHmac } from "@/lib/hmac";
+import { logAudit } from "@/lib/audit/log";
 import { violationPushSchema } from "@/lib/validators/violation";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -73,11 +74,16 @@ export async function POST(req: Request) {
   }
 
   const repo = parsed.data.repo ?? null;
+  const instanceId = parsed.data.instance_id ?? null;
+  const sessionId = parsed.data.session_id ?? null;
 
   const rows = parsed.data.violations.map((v) => ({
     orgId: key.orgId,
     apiKeyId: key.id,
+    apiKeyEnvironment: key.environment,
     repo,
+    instanceId,
+    sessionId,
     ruleId: v.rule_id,
     severity: v.severity,
     message: v.message,
@@ -95,6 +101,23 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
+
+  logAudit({
+    orgId: key.orgId,
+    action: "push",
+    resourceType: "violation",
+    resourceId: key.id,
+    description: `Violation push accepted for ${key.environment}`,
+    metadata: {
+      api_key_id: key.id,
+      environment: key.environment,
+      instance_id: instanceId,
+      session_id: sessionId,
+      violation_count: rows.length,
+      repo,
+    },
+    req,
+  });
 
   return NextResponse.json({ ok: true, count: rows.length });
 }

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { telemetryEvents } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { verifyHmac } from "@/lib/hmac";
+import { logAudit } from "@/lib/audit/log";
 import { telemetryPushSchema } from "@/lib/validators/telemetry";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -68,8 +69,16 @@ export async function POST(req: Request) {
   await db.insert(telemetryEvents).values({
     orgId: key.orgId,
     apiKeyId: key.id,
+    apiKeyEnvironment: key.environment,
     periodStart: new Date(data.period_start),
     periodEnd: new Date(data.period_end),
+    totalToolCalls: data.total_tool_calls ?? 0,
+    successfulToolCalls: data.successful_tool_calls ?? 0,
+    failedToolCalls: data.failed_tool_calls ?? 0,
+    totalDurationMs: data.total_duration_ms ?? 0,
+    sessionStarts: data.session_starts ?? 0,
+    sessionEnds: data.session_ends ?? 0,
+    sessionDurationMsTotal: data.session_duration_ms_total ?? 0,
     searches: data.searches,
     relatedLookups: data.related_lookups,
     callerLookups: data.caller_lookups ?? 0,
@@ -82,6 +91,24 @@ export async function POST(req: Request) {
     estimatedTokensTotal: data.estimated_tokens_total ?? 0,
     clientVersion: data.client_version ?? null,
     instanceId: data.instance_id ?? null,
+    sessionId: data.session_id ?? null,
+    toolMetrics: data.tool_metrics ?? null,
+  });
+
+  logAudit({
+    orgId: key.orgId,
+    action: "push",
+    resourceType: "telemetry",
+    resourceId: key.id,
+    description: `Telemetry push accepted for ${key.environment}`,
+    metadata: {
+      api_key_id: key.id,
+      environment: key.environment,
+      instance_id: data.instance_id ?? null,
+      session_id: data.session_id ?? null,
+      total_tool_calls: data.total_tool_calls ?? 0,
+    },
+    req,
   });
 
   return NextResponse.json({ ok: true });

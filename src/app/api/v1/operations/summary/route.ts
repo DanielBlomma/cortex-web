@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { and, eq, gte, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -10,7 +11,6 @@ import {
   telemetryEvents,
   workflowSnapshots,
 } from "@/db/schema";
-import { getOwnerId } from "@/lib/auth/owner";
 import { buildOperationalHealthSummary } from "@/lib/operations/health";
 import { settleOperationsQuery } from "@/lib/operations/summary";
 import { applyRateLimit } from "@/lib/rate-limit";
@@ -20,12 +20,12 @@ export async function GET(req: Request) {
   if (rl) return rl;
 
   try {
-    const owner = await getOwnerId();
-    if (!owner) {
+    const { orgId, userId } = await auth();
+    if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownerId = owner.ownerId;
+    const ownerId = orgId ?? `personal_${userId}`;
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3_600_000);
     const warnings: { code: "schema_unavailable"; detail: string }[] = [];
 

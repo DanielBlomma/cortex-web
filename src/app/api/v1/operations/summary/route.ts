@@ -19,10 +19,10 @@ import {
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
-  const rl = applyRateLimit(req, 30);
-  if (rl) return rl;
-
   try {
+    const rl = applyRateLimit(req, 30);
+    if (rl) return rl;
+
     const { orgId, userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

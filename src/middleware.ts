@@ -5,10 +5,13 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/v1/operations/summary",
+  "/api/v1/audit/push",
+  "/api/v1/reviews/push",
   "/api/v1/telemetry/push",
   "/api/v1/policy/sync",
   "/api/v1/policies/sync",
   "/api/v1/violations/push",
+  "/api/v1/workflow/push",
   "/api/webhooks/(.*)",
 ]);
 

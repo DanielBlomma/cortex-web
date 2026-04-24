@@ -128,6 +128,7 @@ export async function GET(req: Request) {
       "occurred_at",
     ]);
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3_600_000);
+    const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
     const [
       orgRows,
       keyRows,
@@ -179,7 +180,7 @@ export async function GET(req: Request) {
           .select({
             lastAuditAt: sql<string>`max(${auditLog.occurredAt})`,
             lastPolicySyncAt: sql<string>`max(${auditLog.occurredAt}) filter (where ${auditLog.eventType} = 'policy_sync')`,
-            requiredAuditEvents30d: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'required' and ${auditLog.occurredAt} >= ${thirtyDaysAgo})`,
+            requiredAuditEvents30d: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'required' and ${auditLog.occurredAt} >= ${thirtyDaysAgoIso}::timestamptz)`,
           })
           .from(auditLog)
           .where(eq(auditLog.orgId, ownerId)),

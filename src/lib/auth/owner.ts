@@ -1,4 +1,4 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { memberships, organizations, users } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -16,15 +16,34 @@ export async function getOwnerId(): Promise<{
   userId: string;
   role: DashboardRole;
 } | null> {
-  const { orgId, orgRole, userId } = await auth();
+  const { orgId, orgRole, orgSlug, userId } = await auth();
 
   if (!userId) return null;
 
   const ownerId = orgId ?? `personal_${userId}`;
+  let orgName = orgId ? "Organization" : "Personal";
+  let resolvedOrgSlug = orgId ? orgSlug ?? ownerId : ownerId;
+
+  if (orgId) {
+    try {
+      const client = await clerkClient();
+      const organization = await client.organizations.getOrganization({
+        organizationId: orgId,
+      });
+      orgName = organization.name || orgName;
+      resolvedOrgSlug = organization.slug || resolvedOrgSlug;
+    } catch {
+      // Fall back to auth() data if Clerk org lookup fails.
+    }
+  }
 
   // Ensure org row exists
   const [existingOrg] = await db
-    .select({ id: organizations.id })
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      slug: organizations.slug,
+    })
     .from(organizations)
     .where(eq(organizations.id, ownerId))
     .limit(1);
@@ -34,10 +53,22 @@ export async function getOwnerId(): Promise<{
       .insert(organizations)
       .values({
         id: ownerId,
-        name: orgId ? "Organization" : "Personal",
-        slug: ownerId,
+        name: orgName,
+        slug: resolvedOrgSlug,
       })
       .onConflictDoNothing();
+  } else if (
+    existingOrg.name !== orgName ||
+    existingOrg.slug !== resolvedOrgSlug
+  ) {
+    await db
+      .update(organizations)
+      .set({
+        name: orgName,
+        slug: resolvedOrgSlug,
+        updatedAt: new Date(),
+      })
+      .where(eq(organizations.id, ownerId));
   }
 
   // Ensure user row exists

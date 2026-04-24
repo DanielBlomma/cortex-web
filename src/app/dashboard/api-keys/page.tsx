@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { Plus, Copy, Trash2, Check, Download } from "lucide-react";
 
@@ -190,11 +191,11 @@ export default function ApiKeysPage() {
                     </TableCell>
                     <TableCell className="text-zinc-500 text-sm">
                       {key.lastUsedAt
-                        ? new Date(key.lastUsedAt).toLocaleDateString()
+                        ? formatDate(key.lastUsedAt)
                         : "Never"}
                     </TableCell>
                     <TableCell className="text-zinc-500 text-sm">
-                      {new Date(key.createdAt).toLocaleDateString()}
+                      {formatDate(key.createdAt)}
                     </TableCell>
                     <TableCell>
                       <Button

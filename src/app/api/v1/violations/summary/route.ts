@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { policies, policyViolations } from "@/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { getOwnerId } from "@/lib/auth/owner";
 import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
-  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 
-  const owner = await getOwnerId();
-  if (!owner)
+  const { orgId, userId } = await auth();
+  if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const ownerId = owner.ownerId;
+  const ownerId = orgId ?? `personal_${userId}`;
+  await ensureRuntimeSchema();
 
   // Totals by severity
   const bySeverity = await db

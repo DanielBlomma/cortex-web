@@ -25,6 +25,7 @@ import {
   Gauge,
   GitBranch,
 } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/dates";
 import type { Policy as DashboardPolicy } from "@/lib/types/policy";
 
 type Policy = {
@@ -613,7 +614,7 @@ export default function ReportsPage() {
                         {p.priority}
                       </TableCell>
                       <TableCell className="text-zinc-500 text-sm text-right">
-                        {new Date(p.createdAt).toLocaleDateString()}
+                        {formatDate(p.createdAt)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -693,7 +694,7 @@ export default function ReportsPage() {
                       </TableCell>
                       <TableCell className="text-zinc-500 text-sm text-right">
                         {k.lastUsedAt
-                          ? new Date(k.lastUsedAt).toLocaleDateString()
+                          ? formatDate(k.lastUsedAt)
                           : "Never"}
                       </TableCell>
                     </TableRow>
@@ -906,7 +907,7 @@ export default function ReportsPage() {
                           {row.reviewStatus}
                         </TableCell>
                         <TableCell className="text-right text-sm text-zinc-500">
-                          {new Date(row.receivedAt).toLocaleString()}
+                          {formatDateTime(row.receivedAt)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -954,7 +955,7 @@ export default function ReportsPage() {
                     {report.auditTrail.events.map((e) => (
                       <TableRow key={e.id} className="border-white/5">
                         <TableCell className="text-zinc-400 text-sm whitespace-nowrap">
-                          {new Date(e.occurredAt ?? e.createdAt).toLocaleString()}
+                          {formatDateTime(e.occurredAt ?? e.createdAt)}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">

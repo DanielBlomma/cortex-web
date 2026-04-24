@@ -21,7 +21,6 @@ import { applyRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
   try {
-    await ensureRuntimeSchema();
     const rl = applyRateLimit(req, 30);
     if (rl) return rl;
 
@@ -31,6 +30,7 @@ export async function GET(req: Request) {
     }
 
     const ownerId = orgId ?? `personal_${userId}`;
+    await ensureRuntimeSchema();
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3_600_000);
     const warnings: {
       code: "schema_unavailable" | "summary_unavailable";

@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDate, formatDateTime } from "@/lib/dates";
 import {
   CheckCircle2,
   XCircle,
@@ -317,7 +318,7 @@ export default function ReviewsPage() {
                           {p.errors > 0 ? formatNumber(p.errors) : "—"}
                         </TableCell>
                         <TableCell className="text-zinc-500 text-sm text-right">
-                          {new Date(p.lastSeen).toLocaleDateString()}
+                          {formatDate(p.lastSeen)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -380,7 +381,7 @@ export default function ReviewsPage() {
                           {r.message || "—"}
                         </TableCell>
                         <TableCell className="text-zinc-500 text-sm text-right whitespace-nowrap">
-                          {new Date(r.reviewedAt).toLocaleString()}
+                          {formatDateTime(r.reviewedAt)}
                         </TableCell>
                       </TableRow>
                     );

@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AlertTriangle, ShieldAlert, Info, FileWarning } from "lucide-react";
+import { formatDate, formatDateTime } from "@/lib/dates";
 
 type SeverityCounts = { error: number; warning: number; info: number };
 
@@ -292,7 +293,7 @@ export default function ViolationsPage() {
                           {r.warnings > 0 ? formatNumber(r.warnings) : "—"}
                         </TableCell>
                         <TableCell className="text-zinc-500 text-sm text-right">
-                          {new Date(r.lastSeen).toLocaleDateString()}
+                          {formatDate(r.lastSeen)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -349,7 +350,7 @@ export default function ViolationsPage() {
                           {v.filePath || "—"}
                         </TableCell>
                         <TableCell className="text-zinc-500 text-sm text-right whitespace-nowrap">
-                          {new Date(v.occurredAt).toLocaleString()}
+                          {formatDateTime(v.occurredAt)}
                         </TableCell>
                       </TableRow>
                     );

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { telemetryEvents, policies } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
-import { getOwnerId } from "@/lib/auth/owner";
 import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { TELEMETRY_RETENTION_POLICY } from "@/lib/telemetry/retention";
 import { applyRateLimit } from "@/lib/rate-limit";
@@ -23,15 +23,15 @@ function estimateTotal(
 }
 
 export async function GET(req: Request) {
-  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 
-  const owner = await getOwnerId();
-  if (!owner)
+  const { orgId, userId } = await auth();
+  if (!userId)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const ownerId = owner.ownerId;
+  const ownerId = orgId ?? `personal_${userId}`;
+  await ensureRuntimeSchema();
 
   // Aggregate totals from telemetry_events
   const [totals] = await db

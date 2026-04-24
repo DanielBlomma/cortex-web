@@ -193,6 +193,23 @@ export const telemetryDaily = pgTable(
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     date: date("date").notNull(),
+    totalToolCalls: integer("total_tool_calls").notNull().default(0),
+    totalSuccessfulToolCalls: integer("total_successful_tool_calls")
+      .notNull()
+      .default(0),
+    totalFailedToolCalls: integer("total_failed_tool_calls")
+      .notNull()
+      .default(0),
+    totalDurationMs: bigint("total_duration_ms", { mode: "number" })
+      .notNull()
+      .default(0),
+    totalSessionStarts: integer("total_session_starts").notNull().default(0),
+    totalSessionEnds: integer("total_session_ends").notNull().default(0),
+    totalSessionDurationMs: bigint("total_session_duration_ms", {
+      mode: "number",
+    })
+      .notNull()
+      .default(0),
     totalSearches: integer("total_searches").notNull().default(0),
     totalRelatedLookups: integer("total_related_lookups").notNull().default(0),
     totalRuleLookups: integer("total_rule_lookups").notNull().default(0),
@@ -206,11 +223,53 @@ export const telemetryDaily = pgTable(
     totalTokensSaved: bigint("total_tokens_saved", { mode: "number" })
       .notNull()
       .default(0),
+    totalTokensTotal: bigint("total_tokens_total", { mode: "number" })
+      .notNull()
+      .default(0),
     pushCount: integer("push_count").notNull().default(0),
   },
   (t) => [
     uniqueIndex("idx_telemetry_daily_org_date").on(t.orgId, t.date),
     index("idx_telemetry_daily_org").on(t.orgId),
+  ]
+);
+
+export const operationsSnapshots = pgTable(
+  "operations_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    activeApiKeys: integer("active_api_keys").notNull().default(0),
+    activePolicies: integer("active_policies").notNull().default(0),
+    enforcedPolicies: integer("enforced_policies").notNull().default(0),
+    blockingPolicies: integer("blocking_policies").notNull().default(0),
+    activeInstances: integer("active_instances").notNull().default(0),
+    distinctVersions: integer("distinct_versions").notNull().default(0),
+    totalToolCalls: bigint("total_tool_calls", { mode: "number" })
+      .notNull()
+      .default(0),
+    failedToolCalls: bigint("failed_tool_calls", { mode: "number" })
+      .notNull()
+      .default(0),
+    workflowSessions30d: integer("workflow_sessions_30d").notNull().default(0),
+    reviewedSessions30d: integer("reviewed_sessions_30d").notNull().default(0),
+    approvedSessions30d: integer("approved_sessions_30d").notNull().default(0),
+    blockedSessions30d: integer("blocked_sessions_30d").notNull().default(0),
+    requiredAuditEvents30d: integer("required_audit_events_30d")
+      .notNull()
+      .default(0),
+    lastPolicySyncAt: timestamp("last_policy_sync_at", { withTimezone: true }),
+    lastTelemetryAt: timestamp("last_telemetry_at", { withTimezone: true }),
+    lastAuditAt: timestamp("last_audit_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("idx_operations_snapshots_org").on(t.orgId),
+    index("idx_operations_snapshots_updated").on(t.updatedAt),
   ]
 );
 
@@ -289,6 +348,28 @@ export const auditLog = pgTable(
   ]
 );
 
+export const auditDaily = pgTable(
+  "audit_daily",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    totalCount: integer("total_count").notNull().default(0),
+    requiredCount: integer("required_count").notNull().default(0),
+    diagnosticCount: integer("diagnostic_count").notNull().default(0),
+    clientCount: integer("client_count").notNull().default(0),
+    webCount: integer("web_count").notNull().default(0),
+    lastOccurredAt: timestamp("last_occurred_at", { withTimezone: true }),
+    lastPolicySyncAt: timestamp("last_policy_sync_at", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("idx_audit_daily_org_date").on(t.orgId, t.date),
+    index("idx_audit_daily_org").on(t.orgId),
+  ]
+);
+
 export const policyViolations = pgTable(
   "policy_violations",
   {
@@ -317,6 +398,68 @@ export const policyViolations = pgTable(
     index("idx_violations_org_time").on(t.orgId, t.occurredAt),
     index("idx_violations_org_rule").on(t.orgId, t.ruleId),
     index("idx_violations_org_session").on(t.orgId, t.sessionId),
+  ]
+);
+
+export const violationsDaily = pgTable(
+  "violations_daily",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    totalCount: integer("total_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0),
+    warningCount: integer("warning_count").notNull().default(0),
+    infoCount: integer("info_count").notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex("idx_violations_daily_org_date").on(t.orgId, t.date),
+    index("idx_violations_daily_org").on(t.orgId),
+  ]
+);
+
+export const reviewsDaily = pgTable(
+  "reviews_daily",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    totalCount: integer("total_count").notNull().default(0),
+    passedCount: integer("passed_count").notNull().default(0),
+    failedCount: integer("failed_count").notNull().default(0),
+    errorCount: integer("error_count").notNull().default(0),
+    warningCount: integer("warning_count").notNull().default(0),
+  },
+  (t) => [
+    uniqueIndex("idx_reviews_daily_org_date").on(t.orgId, t.date),
+    index("idx_reviews_daily_org").on(t.orgId),
+  ]
+);
+
+export const policyRuleStats = pgTable(
+  "policy_rule_stats",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    ruleId: text("rule_id").notNull(),
+    reviewFailureCount: integer("review_failure_count").notNull().default(0),
+    warningReviewCount: integer("warning_review_count").notNull().default(0),
+    lastReviewAt: timestamp("last_review_at", { withTimezone: true }),
+    violationCount: integer("violation_count").notNull().default(0),
+    lastViolationAt: timestamp("last_violation_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("idx_policy_rule_stats_org_rule").on(t.orgId, t.ruleId),
+    index("idx_policy_rule_stats_org").on(t.orgId),
   ]
 );
 
@@ -378,6 +521,31 @@ export const workflowSnapshots = pgTable(
   (t) => [
     index("idx_workflow_snapshots_org_time").on(t.orgId, t.receivedAt),
     index("idx_workflow_snapshots_org_session").on(t.orgId, t.sessionId),
+  ]
+);
+
+export const workflowSessions = pgTable(
+  "workflow_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    sessionId: text("session_id").notNull(),
+    repo: text("repo"),
+    instanceId: text("instance_id"),
+    phase: text("phase").notNull(),
+    approvalStatus: text("approval_status").notNull(),
+    planStatus: text("plan_status").notNull(),
+    reviewStatus: text("review_status").notNull(),
+    blockedReasons: jsonb("blocked_reasons"),
+    lastReceivedAt: timestamp("last_received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("idx_workflow_sessions_org_session").on(t.orgId, t.sessionId),
+    index("idx_workflow_sessions_org_time").on(t.orgId, t.lastReceivedAt),
   ]
 );
 

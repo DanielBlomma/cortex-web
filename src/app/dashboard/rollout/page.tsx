@@ -124,33 +124,17 @@ export default function RolloutPage() {
         return data as T;
       };
 
-      const [opsRes, keysRes] = await Promise.allSettled([
-        readJson<OperationsSummary>("/api/v1/operations/summary"),
-        fetch("/api/v1/api-keys"),
-      ]);
+      const payload = await readJson<{
+        operations: OperationsSummary;
+        access: {
+          keyAccessRestricted: boolean;
+          keys: ApiKey[];
+        };
+      }>("/api/v1/dashboard/rollout");
 
-      if (opsRes.status !== "fulfilled") {
-        throw opsRes.reason instanceof Error
-          ? opsRes.reason
-          : new Error("Failed to load rollout summary");
-      }
-
-      setOperations(opsRes.value);
-
-      if (keysRes.status === "fulfilled") {
-        if (keysRes.value.ok) {
-          const keysJson = await keysRes.value.json();
-          setKeys(keysJson.keys ?? []);
-          setKeyAccessRestricted(false);
-        } else if (keysRes.value.status === 403) {
-          setKeys([]);
-          setKeyAccessRestricted(true);
-        } else {
-          throw new Error("Failed to load API keys");
-        }
-      } else {
-        throw new Error("Failed to load API keys");
-      }
+      setOperations(payload.operations);
+      setKeys(payload.access.keys ?? []);
+      setKeyAccessRestricted(payload.access.keyAccessRestricted);
     } catch (error) {
       setError(
         error instanceof Error
@@ -163,7 +147,13 @@ export default function RolloutPage() {
   }, []);
 
   useEffect(() => {
-    void fetchData();
+    const timeoutId = window.setTimeout(() => {
+      void fetchData();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [fetchData]);
 
   const signals = operations

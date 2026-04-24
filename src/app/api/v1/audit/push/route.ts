@@ -5,6 +5,9 @@ import { verifyApiKey } from "@/lib/api-keys/verify";
 import { verifyHmac } from "@/lib/hmac";
 import { logAudit } from "@/lib/audit/log";
 import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
+import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
+import { upsertAuditDaily } from "@/lib/operations/rollups";
+import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { auditPushSchema } from "@/lib/validators/audit";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -108,7 +111,20 @@ export async function POST(req: Request) {
   }));
 
   try {
-    await db.insert(auditLog).values(rows);
+    await db.transaction(async (tx) => {
+      await tx.insert(auditLog).values(rows);
+      for (const event of data.events) {
+        await upsertAuditDaily(tx, {
+          orgId: key.orgId,
+          occurredAt: new Date(event.timestamp),
+          source: "client",
+          evidenceLevel: event.evidence_level ?? "diagnostic",
+          eventType: event.event_type ?? "tool_call",
+        });
+      }
+    });
+    await refreshOperationsSnapshot(key.orgId);
+    await invalidateOwnerRouteCache(key.orgId);
   } catch (err) {
     console.error("Audit insert failed:", err);
     return NextResponse.json(

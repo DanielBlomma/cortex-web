@@ -6,6 +6,7 @@ import {
   normalizeDashboardRole,
   type DashboardRole,
 } from "@/lib/auth/role";
+import { seedOperationsSnapshot } from "@/lib/operations/snapshot";
 
 /**
  * Returns the orgId to scope data queries and ensures the
@@ -70,6 +71,8 @@ export async function getOwnerId(): Promise<{
       })
       .where(eq(organizations.id, ownerId));
   }
+
+  await seedOperationsSnapshot(ownerId);
 
   // Ensure user row exists
   const [existingUser] = await db

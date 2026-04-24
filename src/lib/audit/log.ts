@@ -1,5 +1,7 @@
 import { db } from "@/db";
 import { auditLog } from "@/db/schema";
+import { upsertAuditDaily } from "@/lib/operations/rollups";
+import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
 
 type AuditEntry = {
   orgId: string;
@@ -48,6 +50,8 @@ export function logAudit(entry: AuditEntry) {
   const userAgent = entry.req?.headers.get("user-agent") ?? null;
 
   // Fire-and-forget — audit logging should not block the request
+  const occurredAt = entry.occurredAt ?? new Date();
+
   db.insert(auditLog)
     .values({
       orgId: entry.orgId,
@@ -67,8 +71,18 @@ export function logAudit(entry: AuditEntry) {
       metadata: entry.metadata ? JSON.stringify(entry.metadata) : null,
       ipAddress,
       userAgent,
-      occurredAt: entry.occurredAt ?? new Date(),
+      occurredAt,
     })
+    .then(() =>
+      upsertAuditDaily(db, {
+        orgId: entry.orgId,
+        occurredAt,
+        source: entry.source ?? "web",
+        evidenceLevel: entry.evidenceLevel ?? "diagnostic",
+        eventType: entry.eventType ?? null,
+      }),
+    )
+    .then(() => invalidateOwnerRouteCache(entry.orgId))
     .catch((err) => {
       console.error("Audit log write failed:", err);
     });

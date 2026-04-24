@@ -4,6 +4,9 @@ import { workflowSnapshots } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { logAudit } from "@/lib/audit/log";
 import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
+import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
+import { upsertWorkflowSession } from "@/lib/operations/rollups";
+import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { workflowPushSchema } from "@/lib/validators/workflow";
 import { applyRateLimit } from "@/lib/rate-limit";
 
@@ -47,20 +50,39 @@ export async function POST(req: Request) {
 
   const data = parsed.data;
 
-  await db.insert(workflowSnapshots).values({
-    orgId: key.orgId,
-    apiKeyId: key.id,
-    apiKeyEnvironment: key.environment,
-    repo: data.repo ?? null,
-    instanceId: data.instance_id ?? null,
-    sessionId: data.session_id ?? null,
-    phase: data.workflow.phase,
-    approvalStatus: data.workflow.approval.status,
-    planStatus: data.workflow.plan.status,
-    reviewStatus: data.workflow.last_review.status,
-    blockedReasons: data.workflow.blocked_reasons,
-    snapshot: data.workflow,
+  await db.transaction(async (tx) => {
+    await tx.insert(workflowSnapshots).values({
+      orgId: key.orgId,
+      apiKeyId: key.id,
+      apiKeyEnvironment: key.environment,
+      repo: data.repo ?? null,
+      instanceId: data.instance_id ?? null,
+      sessionId: data.session_id ?? null,
+      phase: data.workflow.phase,
+      approvalStatus: data.workflow.approval.status,
+      planStatus: data.workflow.plan.status,
+      reviewStatus: data.workflow.last_review.status,
+      blockedReasons: data.workflow.blocked_reasons,
+      snapshot: data.workflow,
+    });
+
+    if (data.session_id) {
+      await upsertWorkflowSession(tx, {
+        orgId: key.orgId,
+        sessionId: data.session_id,
+        repo: data.repo ?? null,
+        instanceId: data.instance_id ?? null,
+        phase: data.workflow.phase,
+        approvalStatus: data.workflow.approval.status,
+        planStatus: data.workflow.plan.status,
+        reviewStatus: data.workflow.last_review.status,
+        blockedReasons: data.workflow.blocked_reasons,
+      });
+    }
   });
+
+  await refreshOperationsSnapshot(key.orgId);
+  await invalidateOwnerRouteCache(key.orgId);
 
   logAudit({
     orgId: key.orgId,

@@ -6,6 +6,8 @@ import { updatePolicySchema } from "@/lib/validators/policy";
 import { UUID_RE } from "@/lib/validators/uuid";
 import { getOwnerId } from "@/lib/auth/owner";
 import { logAudit } from "@/lib/audit/log";
+import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
+import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { resolvePolicyUpdateConfig } from "@/lib/policies/config";
 
@@ -108,6 +110,9 @@ export async function PUT(
   if (!policy)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  await refreshOperationsSnapshot(owner.ownerId);
+  await invalidateOwnerRouteCache(owner.ownerId);
+
   logAudit({
     orgId: owner.ownerId,
     userId: owner.userId,
@@ -150,6 +155,9 @@ export async function DELETE(
 
   if (!policy)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  await refreshOperationsSnapshot(owner.ownerId);
+  await invalidateOwnerRouteCache(owner.ownerId);
 
   logAudit({
     orgId: owner.ownerId,

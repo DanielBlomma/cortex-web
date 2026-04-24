@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { db } from "@/db";
-import { policies } from "@/db/schema";
+import { auditLog, policies } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { computeHmac } from "@/lib/hmac";
-import { logAudit } from "@/lib/audit/log";
-import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
+import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
+import { upsertAuditDaily } from "@/lib/operations/rollups";
+import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { applyRateLimit } from "@/lib/rate-limit";
 
 /**
@@ -16,7 +17,6 @@ import { applyRateLimit } from "@/lib/rate-limit";
  * Returns { rules: [...] } in the format cortex-enterprise expects.
  */
 export async function GET(req: Request) {
-  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 60);
   if (rl) return rl;
 
@@ -81,22 +81,52 @@ export async function GET(req: Request) {
     response.signature = `sha256=${computeHmac(version, key.hmacSecret)}`;
   }
 
-  logAudit({
-    orgId: key.orgId,
-    action: "sync",
-    resourceType: "policy_sync",
-    resourceId: key.id,
-    description: `Policy sync served for ${key.environment}`,
-    metadata: {
-      api_key_id: key.id,
-      environment: key.environment,
-      instance_id: req.headers.get("x-cortex-instance-id"),
-      session_id: req.headers.get("x-cortex-session-id"),
-      synced_rules: rules.length,
-      version,
-    },
-    req,
+  const instanceId = req.headers.get("x-cortex-instance-id");
+  const sessionId = req.headers.get("x-cortex-session-id");
+  const ipAddress =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    req.headers.get("x-real-ip") ??
+    null;
+  const userAgent = req.headers.get("user-agent") ?? null;
+
+  const occurredAt = new Date();
+  await db.transaction(async (tx) => {
+    await tx.insert(auditLog).values({
+      orgId: key.orgId,
+      apiKeyId: key.id,
+      apiKeyEnvironment: key.environment,
+      source: "web",
+      action: "sync",
+      eventType: "policy_sync",
+      evidenceLevel: "diagnostic",
+      resourceType: "policy_sync",
+      resourceId: key.id,
+      instanceId,
+      sessionId,
+      description: `Policy sync served for ${key.environment}`,
+      metadata: JSON.stringify({
+        api_key_id: key.id,
+        environment: key.environment,
+        instance_id: instanceId,
+        session_id: sessionId,
+        synced_rules: rules.length,
+        version,
+      }),
+      ipAddress,
+      userAgent,
+      occurredAt,
+    });
+    await upsertAuditDaily(tx, {
+      orgId: key.orgId,
+      occurredAt,
+      source: "web",
+      evidenceLevel: "diagnostic",
+      eventType: "policy_sync",
+    });
   });
+
+  await refreshOperationsSnapshot(key.orgId);
+  await invalidateOwnerRouteCache(key.orgId);
 
   return NextResponse.json(response);
 }

@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditLog } from "@/db/schema";
+import { auditDaily, auditLog } from "@/db/schema";
 import { AUDIT_RETENTION_POLICY } from "@/lib/audit/retention";
-import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { createRequestTiming } from "@/lib/perf/request-timing";
+import { cacheOwnerRoute } from "@/lib/cache/owner-route-cache";
 
 type MetadataValue = Record<string, unknown> | null;
 
@@ -31,15 +32,17 @@ function parseMetadata(raw: string | null): MetadataValue {
 }
 
 export async function GET(req: Request) {
+  const timing = createRequestTiming();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 
-  const { orgId, userId } = await auth();
+  const { orgId, userId } = await timing.timeStep("resolve_owner", () => auth());
   if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return timing.attach(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    );
   }
   const ownerId = orgId ?? `personal_${userId}`;
-  await ensureRuntimeSchema();
 
   const { searchParams } = new URL(req.url);
   const from = parseDateOnly(searchParams.get("from"));
@@ -54,6 +57,7 @@ export async function GET(req: Request) {
   const limit = Number.isFinite(limitRaw)
     ? Math.max(1, Math.min(limitRaw, 500))
     : 100;
+  const queryKey = new URL(req.url).searchParams.toString();
 
   if ((searchParams.get("from") && !from) || (searchParams.get("to") && !to)) {
     return NextResponse.json(
@@ -84,65 +88,105 @@ export async function GET(req: Request) {
 
   const whereClause = filters.length > 0 ? and(...filters) : undefined;
 
-  const [totals] = await db
-    .select({
-      total: sql<number>`count(*)`,
-      required: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'required')`,
-      diagnostic: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'diagnostic')`,
-      client: sql<number>`count(*) filter (where ${auditLog.source} = 'client')`,
-      web: sql<number>`count(*) filter (where ${auditLog.source} = 'web')`,
-    })
-    .from(auditLog)
-    .where(whereClause);
+  const canUseAuditDailyTotals =
+    !from &&
+    !to &&
+    !resourceType &&
+    !sessionId &&
+    !search &&
+    source === null &&
+    eventType === null &&
+    evidenceLevel === null;
 
-  const byEventType = await db
-    .select({
-      eventType: sql<string>`coalesce(${auditLog.eventType}, 'unknown')`,
-      count: sql<number>`count(*)`,
-    })
-    .from(auditLog)
-    .where(whereClause)
-    .groupBy(auditLog.eventType)
-    .orderBy(desc(sql`count(*)`));
+  const payload = await timing.timeStep("route_cache", () =>
+    cacheOwnerRoute({
+      namespace: "audit-summary",
+      ownerId,
+      cacheKeyParts: [queryKey],
+      load: async () => {
+        const [totals] = canUseAuditDailyTotals
+          ? await timing.timeStep("audit_totals_daily", () =>
+              db
+                .select({
+                  total: sql<number>`coalesce(sum(${auditDaily.totalCount}), 0)`,
+                  required: sql<number>`coalesce(sum(${auditDaily.requiredCount}), 0)`,
+                  diagnostic: sql<number>`coalesce(sum(${auditDaily.diagnosticCount}), 0)`,
+                  client: sql<number>`coalesce(sum(${auditDaily.clientCount}), 0)`,
+                  web: sql<number>`coalesce(sum(${auditDaily.webCount}), 0)`,
+                })
+                .from(auditDaily)
+                .where(eq(auditDaily.orgId, ownerId)),
+            )
+          : await timing.timeStep("audit_totals_raw", () =>
+              db
+                .select({
+                  total: sql<number>`count(*)`,
+                  required: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'required')`,
+                  diagnostic: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'diagnostic')`,
+                  client: sql<number>`count(*) filter (where ${auditLog.source} = 'client')`,
+                  web: sql<number>`count(*) filter (where ${auditLog.source} = 'web')`,
+                })
+                .from(auditLog)
+                .where(whereClause),
+            );
 
-  const rows = await db
-    .select({
-      id: auditLog.id,
-      source: auditLog.source,
-      action: auditLog.action,
-      eventType: auditLog.eventType,
-      evidenceLevel: auditLog.evidenceLevel,
-      resourceType: auditLog.resourceType,
-      resourceId: auditLog.resourceId,
-      repo: auditLog.repo,
-      sessionId: auditLog.sessionId,
-      instanceId: auditLog.instanceId,
-      description: auditLog.description,
-      metadata: auditLog.metadata,
-      occurredAt: auditLog.occurredAt,
-      createdAt: auditLog.createdAt,
-    })
-    .from(auditLog)
-    .where(whereClause)
-    .orderBy(desc(auditLog.occurredAt), desc(auditLog.createdAt))
-    .limit(limit);
+        const byEventType = await timing.timeStep("audit_by_event_type", () =>
+          db
+            .select({
+              eventType: sql<string>`coalesce(${auditLog.eventType}, 'unknown')`,
+              count: sql<number>`count(*)`,
+            })
+            .from(auditLog)
+            .where(whereClause)
+            .groupBy(auditLog.eventType)
+            .orderBy(desc(sql`count(*)`)),
+        );
 
-  return NextResponse.json({
-    retention: AUDIT_RETENTION_POLICY,
-    totals: {
-      total: Number(totals?.total ?? 0),
-      required: Number(totals?.required ?? 0),
-      diagnostic: Number(totals?.diagnostic ?? 0),
-      client: Number(totals?.client ?? 0),
-      web: Number(totals?.web ?? 0),
-    },
-    byEventType: byEventType.map((row) => ({
-      eventType: row.eventType,
-      count: Number(row.count),
-    })),
-    events: rows.map((row) => ({
-      ...row,
-      metadata: parseMetadata(row.metadata),
-    })),
-  });
+        const rows = await timing.timeStep("audit_recent", () =>
+          db
+            .select({
+              id: auditLog.id,
+              source: auditLog.source,
+              action: auditLog.action,
+              eventType: auditLog.eventType,
+              evidenceLevel: auditLog.evidenceLevel,
+              resourceType: auditLog.resourceType,
+              resourceId: auditLog.resourceId,
+              repo: auditLog.repo,
+              sessionId: auditLog.sessionId,
+              instanceId: auditLog.instanceId,
+              description: auditLog.description,
+              metadata: auditLog.metadata,
+              occurredAt: auditLog.occurredAt,
+              createdAt: auditLog.createdAt,
+            })
+            .from(auditLog)
+            .where(whereClause)
+            .orderBy(desc(auditLog.occurredAt), desc(auditLog.createdAt))
+            .limit(limit),
+        );
+
+        return {
+          retention: AUDIT_RETENTION_POLICY,
+          totals: {
+            total: Number(totals?.total ?? 0),
+            required: Number(totals?.required ?? 0),
+            diagnostic: Number(totals?.diagnostic ?? 0),
+            client: Number(totals?.client ?? 0),
+            web: Number(totals?.web ?? 0),
+          },
+          byEventType: byEventType.map((row) => ({
+            eventType: row.eventType,
+            count: Number(row.count),
+          })),
+          events: rows.map((row) => ({
+            ...row,
+            metadata: parseMetadata(row.metadata),
+          })),
+        };
+      },
+    }),
+  );
+
+  return timing.attach(NextResponse.json(payload));
 }

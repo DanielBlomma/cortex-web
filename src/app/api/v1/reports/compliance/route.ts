@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import {
-  auditLog,
-  policies,
   apiKeys,
+  auditDaily,
+  auditLog,
   policyViolations,
+  policies,
+  reviewsDaily,
   telemetryEvents,
-  reviews,
+  telemetryDaily,
+  violationsDaily,
   workflowSnapshots,
 } from "@/db/schema";
-import { eq, sql, and, gte, lte, isNull, desc } from "drizzle-orm";
+import { eq, sql, and, gte, lte, desc } from "drizzle-orm";
 import { getOwnerId } from "@/lib/auth/owner";
 import { logAudit } from "@/lib/audit/log";
 import { AUDIT_RETENTION_POLICY } from "@/lib/audit/retention";
@@ -19,43 +22,52 @@ import {
   RESIDUAL_CUSTOMER_RESPONSIBILITIES,
 } from "@/lib/compliance/control-mapping";
 import { summarizeAuditEvidence } from "@/lib/compliance/audit-evidence";
-import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { createRequestTiming } from "@/lib/perf/request-timing";
 
 export async function GET(req: Request) {
-  await ensureRuntimeSchema();
+  const timing = createRequestTiming();
   const rl = applyRateLimit(req, 5);
   if (rl) return rl;
 
-  const owner = await getOwnerId();
+  const owner = await timing.timeStep("resolve_owner", () => getOwnerId());
   if (!owner)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return timing.attach(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    );
 
   const { searchParams } = new URL(req.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
   if (!from || !to) {
-    return NextResponse.json(
-      { error: "from and to query parameters are required (YYYY-MM-DD)" },
-      { status: 400 }
+    return timing.attach(
+      NextResponse.json(
+        { error: "from and to query parameters are required (YYYY-MM-DD)" },
+        { status: 400 }
+      ),
     );
   }
 
   const fromDate = new Date(`${from}T00:00:00Z`);
   const toDate = new Date(`${to}T23:59:59Z`);
+  const fromDay = from;
+  const toDay = to;
 
   if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
-    return NextResponse.json(
-      { error: "Invalid date format. Use YYYY-MM-DD" },
-      { status: 400 }
+    return timing.attach(
+      NextResponse.json(
+        { error: "Invalid date format. Use YYYY-MM-DD" },
+        { status: 400 }
+      ),
     );
   }
 
   const ownerId = owner.ownerId;
 
   // 1. Policy governance
-  const activePolicies = await db
+  const activePolicies = await timing.timeStep("compliance_policies", () =>
+    db
     .select({
       id: policies.id,
       title: policies.title,
@@ -72,10 +84,12 @@ export async function GET(req: Request) {
     })
     .from(policies)
     .where(eq(policies.orgId, ownerId))
-    .orderBy(policies.priority);
+    .orderBy(policies.priority),
+  );
 
   // 2. API key inventory
-  const allKeys = await db
+  const allKeys = await timing.timeStep("compliance_api_keys", () =>
+    db
     .select({
       id: apiKeys.id,
       name: apiKeys.name,
@@ -87,7 +101,8 @@ export async function GET(req: Request) {
     })
     .from(apiKeys)
     .where(eq(apiKeys.orgId, ownerId))
-    .orderBy(apiKeys.createdAt);
+    .orderBy(apiKeys.createdAt),
+  );
 
   const activeKeys = allKeys.filter((k) => !k.revokedAt);
   const revokedKeysInPeriod = allKeys.filter(
@@ -95,23 +110,26 @@ export async function GET(req: Request) {
   );
 
   // 3. Violations in period
-  const [violationTotals] = await db
+  const [violationTotals] = await timing.timeStep("compliance_violation_totals", () =>
+    db
     .select({
-      total: sql<number>`count(*)`,
-      errors: sql<number>`count(*) filter (where ${policyViolations.severity} = 'error')`,
-      warnings: sql<number>`count(*) filter (where ${policyViolations.severity} = 'warning')`,
-      info: sql<number>`count(*) filter (where ${policyViolations.severity} = 'info')`,
+      total: sql<number>`coalesce(sum(${violationsDaily.totalCount}), 0)`,
+      errors: sql<number>`coalesce(sum(${violationsDaily.errorCount}), 0)`,
+      warnings: sql<number>`coalesce(sum(${violationsDaily.warningCount}), 0)`,
+      info: sql<number>`coalesce(sum(${violationsDaily.infoCount}), 0)`,
     })
-    .from(policyViolations)
+    .from(violationsDaily)
     .where(
       and(
-        eq(policyViolations.orgId, ownerId),
-        gte(policyViolations.occurredAt, fromDate),
-        lte(policyViolations.occurredAt, toDate)
+        eq(violationsDaily.orgId, ownerId),
+        gte(violationsDaily.date, fromDay),
+        lte(violationsDaily.date, toDay)
       )
-    );
+    ),
+  );
 
-  const violationsByRule = await db
+  const violationsByRule = await timing.timeStep("compliance_violations_by_rule", () =>
+    db
     .select({
       ruleId: policyViolations.ruleId,
       ruleTitle: policies.title,
@@ -133,21 +151,37 @@ export async function GET(req: Request) {
       )
     )
     .groupBy(policyViolations.ruleId, policies.title, policies.severity)
-    .orderBy(desc(sql`count(*)`));
+    .orderBy(desc(sql`count(*)`)),
+  );
 
   // 4. Telemetry summary for period
-  const [telemetry] = await db
+  const [telemetry] = await timing.timeStep("compliance_telemetry_totals", () =>
+    db
     .select({
-      toolCalls: sql<number>`coalesce(sum(${telemetryEvents.totalToolCalls}), 0)`,
-      successfulToolCalls: sql<number>`coalesce(sum(${telemetryEvents.successfulToolCalls}), 0)`,
-      failedToolCalls: sql<number>`coalesce(sum(${telemetryEvents.failedToolCalls}), 0)`,
-      totalDurationMs: sql<number>`coalesce(sum(${telemetryEvents.totalDurationMs}), 0)`,
-      sessionStarts: sql<number>`coalesce(sum(${telemetryEvents.sessionStarts}), 0)`,
-      sessionEnds: sql<number>`coalesce(sum(${telemetryEvents.sessionEnds}), 0)`,
-      searches: sql<number>`coalesce(sum(${telemetryEvents.searches}), 0)`,
-      tokensSaved: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensSaved}), 0)`,
-      resultsReturned: sql<number>`coalesce(sum(${telemetryEvents.totalResultsReturned}), 0)`,
-      pushCount: sql<number>`count(*)`,
+      toolCalls: sql<number>`coalesce(sum(${telemetryDaily.totalToolCalls}), 0)`,
+      successfulToolCalls: sql<number>`coalesce(sum(${telemetryDaily.totalSuccessfulToolCalls}), 0)`,
+      failedToolCalls: sql<number>`coalesce(sum(${telemetryDaily.totalFailedToolCalls}), 0)`,
+      totalDurationMs: sql<number>`coalesce(sum(${telemetryDaily.totalDurationMs}), 0)`,
+      sessionStarts: sql<number>`coalesce(sum(${telemetryDaily.totalSessionStarts}), 0)`,
+      sessionEnds: sql<number>`coalesce(sum(${telemetryDaily.totalSessionEnds}), 0)`,
+      searches: sql<number>`coalesce(sum(${telemetryDaily.totalSearches}), 0)`,
+      tokensSaved: sql<number>`coalesce(sum(${telemetryDaily.totalTokensSaved}), 0)`,
+      resultsReturned: sql<number>`coalesce(sum(${telemetryDaily.totalResultsReturned}), 0)`,
+      pushCount: sql<number>`coalesce(sum(${telemetryDaily.pushCount}), 0)`,
+    })
+    .from(telemetryDaily)
+    .where(
+      and(
+        eq(telemetryDaily.orgId, ownerId),
+        gte(telemetryDaily.date, fromDay),
+        lte(telemetryDaily.date, toDay)
+      )
+    ),
+  );
+
+  const [telemetryInstances] = await timing.timeStep("compliance_telemetry_instances", () =>
+    db
+    .select({
       distinctInstances: sql<number>`count(distinct coalesce(${telemetryEvents.instanceId}, ${telemetryEvents.apiKeyId}::text))`,
     })
     .from(telemetryEvents)
@@ -157,10 +191,12 @@ export async function GET(req: Request) {
         gte(telemetryEvents.periodStart, fromDate),
         lte(telemetryEvents.periodStart, toDate)
       )
-    );
+    ),
+  );
 
   // 5. Audit trail for period
-  const auditEntries = await db
+  const auditEntries = await timing.timeStep("compliance_audit_entries", () =>
+    db
     .select({
       id: auditLog.id,
       userId: auditLog.userId,
@@ -186,43 +222,49 @@ export async function GET(req: Request) {
       )
     )
     .orderBy(desc(auditLog.occurredAt), desc(auditLog.createdAt))
-    .limit(500);
+    .limit(500),
+  );
 
-  const [auditTotals] = await db
+  const [auditTotals] = await timing.timeStep("compliance_audit_totals", () =>
+    db
     .select({
-      totalEvents: sql<number>`count(*)`,
-      requiredAuditEvents: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'required')`,
-      clientAuditEvents: sql<number>`count(*) filter (where ${auditLog.source} = 'client')`,
+      totalEvents: sql<number>`coalesce(sum(${auditDaily.totalCount}), 0)`,
+      requiredAuditEvents: sql<number>`coalesce(sum(${auditDaily.requiredCount}), 0)`,
+      clientAuditEvents: sql<number>`coalesce(sum(${auditDaily.clientCount}), 0)`,
     })
-    .from(auditLog)
+    .from(auditDaily)
     .where(
       and(
-        eq(auditLog.orgId, ownerId),
-        gte(auditLog.occurredAt, fromDate),
-        lte(auditLog.occurredAt, toDate)
+        eq(auditDaily.orgId, ownerId),
+        gte(auditDaily.date, fromDay),
+        lte(auditDaily.date, toDay)
       )
-    );
+    ),
+  );
 
   // 6. Review evidence for period
-  const [reviewTotals] = await db
+  const [reviewTotals] = await timing.timeStep("compliance_review_totals", () =>
+    db
     .select({
-      total: sql<number>`count(*)`,
-      passed: sql<number>`count(*) filter (where ${reviews.pass} = true)`,
-      failed: sql<number>`count(*) filter (where ${reviews.pass} = false)`,
-      blockingFailures: sql<number>`count(*) filter (where ${reviews.pass} = false and ${reviews.severity} = 'error')`,
-      warnings: sql<number>`count(*) filter (where ${reviews.pass} = false and ${reviews.severity} = 'warning')`,
+      total: sql<number>`coalesce(sum(${reviewsDaily.totalCount}), 0)`,
+      passed: sql<number>`coalesce(sum(${reviewsDaily.passedCount}), 0)`,
+      failed: sql<number>`coalesce(sum(${reviewsDaily.failedCount}), 0)`,
+      blockingFailures: sql<number>`coalesce(sum(${reviewsDaily.errorCount}), 0)`,
+      warnings: sql<number>`coalesce(sum(${reviewsDaily.warningCount}), 0)`,
     })
-    .from(reviews)
+    .from(reviewsDaily)
     .where(
       and(
-        eq(reviews.orgId, ownerId),
-        gte(reviews.reviewedAt, fromDate),
-        lte(reviews.reviewedAt, toDate)
+        eq(reviewsDaily.orgId, ownerId),
+        gte(reviewsDaily.date, fromDay),
+        lte(reviewsDaily.date, toDay)
       )
-    );
+    ),
+  );
 
   // 7. Workflow evidence for period
-  const [workflowTotals] = await db
+  const [workflowTotals] = await timing.timeStep("compliance_workflow_totals", () =>
+    db
     .select({
       total: sql<number>`count(*)`,
       approved: sql<number>`count(*) filter (where ${workflowSnapshots.approvalStatus} = 'approved')`,
@@ -236,9 +278,11 @@ export async function GET(req: Request) {
         gte(workflowSnapshots.receivedAt, fromDate),
         lte(workflowSnapshots.receivedAt, toDate)
       )
-    );
+    ),
+  );
 
-  const latestWorkflow = await db
+  const latestWorkflow = await timing.timeStep("compliance_latest_workflow", () =>
+    db
     .select({
       repo: workflowSnapshots.repo,
       sessionId: workflowSnapshots.sessionId,
@@ -257,7 +301,8 @@ export async function GET(req: Request) {
       )
     )
     .orderBy(desc(workflowSnapshots.receivedAt))
-    .limit(10);
+    .limit(10),
+  );
 
   logAudit({
     orgId: ownerId,
@@ -386,7 +431,7 @@ export async function GET(req: Request) {
       totalTokensSaved: Number(telemetry?.tokensSaved ?? 0),
       totalResultsReturned: Number(telemetry?.resultsReturned ?? 0),
       telemetryPushes: Number(telemetry?.pushCount ?? 0),
-      activeInstances: Number(telemetry?.distinctInstances ?? 0),
+      activeInstances: Number(telemetryInstances?.distinctInstances ?? 0),
     },
 
     controlMapping: controlMatrix,
@@ -394,5 +439,5 @@ export async function GET(req: Request) {
     residualResponsibilities: [...RESIDUAL_CUSTOMER_RESPONSIBILITIES],
   };
 
-  return NextResponse.json(report);
+  return timing.attach(NextResponse.json(report));
 }

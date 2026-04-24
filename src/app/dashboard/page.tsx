@@ -43,7 +43,6 @@ type VersionInfo = {
 
 type TelemetrySummary = {
   totals: Totals;
-  activePolicies: number;
   versions: VersionInfo[];
   daily: { date: string; searches: number }[];
 };
@@ -68,9 +67,16 @@ type ApiKey = {
   id: string;
   name: string;
   keyPrefix: string;
-  scopes: string[];
   lastUsedAt: string | null;
   createdAt: string;
+};
+
+type OverviewPolicy = Pick<
+  Policy,
+  "id" | "title" | "ruleId" | "status" | "severity" | "enforce" | "createdAt"
+> & {
+  lastTriggeredAt?: string | null;
+  recentlyTriggered?: boolean;
 };
 
 type OperationsSignal = {
@@ -159,7 +165,9 @@ export default function DashboardPage() {
   const [telemetry, setTelemetry] = useState<TelemetrySummary | null>(null);
   const [violations, setViolations] = useState<ViolationSummary | null>(null);
   const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [totalKeys, setTotalKeys] = useState(0);
+  const [policies, setPolicies] = useState<OverviewPolicy[]>([]);
+  const [totalPolicies, setTotalPolicies] = useState(0);
   const [operations, setOperations] = useState<OperationsSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -182,39 +190,49 @@ export default function DashboardPage() {
       return data as T;
     };
 
-    const [telRes, violRes, keysRes, polRes, operationsRes] =
-      await Promise.allSettled([
-        readJson<TelemetrySummary>("/api/v1/telemetry/summary"),
-        readJson<{ severity: ViolationSummary["severity"]; total: number; recent: ViolationSummary["recent"] }>(
-          "/api/v1/violations/summary",
-        ),
-        readJson<{ keys: ApiKey[] }>("/api/v1/api-keys"),
-        readJson<{ policies: Policy[] }>("/api/v1/policies"),
-        readJson<OperationsSummary>("/api/v1/operations/summary"),
-      ]);
+    type OverviewPayload = {
+      telemetry: TelemetrySummary;
+      violations: ViolationSummary;
+      access: {
+        totalKeys: number;
+        keys: ApiKey[];
+      };
+      policies: {
+        totalPolicies: number;
+        items: OverviewPolicy[];
+      };
+      operations: OperationsSummary;
+    };
 
-    const firstError = [telRes, violRes, keysRes, polRes, operationsRes].find(
-      (result) => result.status === "rejected",
-    );
-    setError(
-      firstError?.status === "rejected"
-        ? firstError.reason instanceof Error
-          ? firstError.reason.message
-          : "Failed to load dashboard data"
-        : null,
-    );
-
-    if (telRes.status === "fulfilled") setTelemetry(telRes.value);
-    if (violRes.status === "fulfilled") setViolations(violRes.value);
-    if (keysRes.status === "fulfilled") setKeys(keysRes.value.keys ?? []);
-    if (polRes.status === "fulfilled") setPolicies(polRes.value.policies ?? []);
-    if (operationsRes.status === "fulfilled")
-      setOperations(operationsRes.value);
-    setLoading(false);
+    try {
+      const payload = await readJson<OverviewPayload>("/api/v1/dashboard/overview");
+      setTelemetry(payload.telemetry);
+      setViolations(payload.violations);
+      setKeys(payload.access.keys ?? []);
+      setTotalKeys(payload.access.totalKeys ?? 0);
+      setPolicies(payload.policies.items ?? []);
+      setTotalPolicies(payload.policies.totalPolicies ?? 0);
+      setOperations(payload.operations);
+      setError(null);
+    } catch (fetchError) {
+      setError(
+        fetchError instanceof Error
+          ? fetchError.message
+          : "Failed to load dashboard data",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    void fetchAll();
+    const timeoutId = window.setTimeout(() => {
+      void fetchAll();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [fetchAll]);
 
   const totals = telemetry?.totals;
@@ -732,7 +750,7 @@ export default function DashboardPage() {
               Access
               <DashboardInfoButton content={dashboardHelp.overviewAccess} />
               <span className="text-zinc-500 text-sm font-normal">
-                ({keys.length})
+                ({totalKeys})
               </span>
             </CardTitle>
             <Link
@@ -745,7 +763,7 @@ export default function DashboardPage() {
           <CardContent>
             {keys.length > 0 ? (
               <div className="space-y-2.5">
-                {keys.slice(0, 4).map((k) => (
+                {keys.map((k) => (
                   <div
                     key={k.id}
                     className="flex items-center justify-between text-sm"
@@ -761,9 +779,9 @@ export default function DashboardPage() {
                     </span>
                   </div>
                 ))}
-                {keys.length > 4 && (
+                {totalKeys > keys.length && (
                   <p className="text-xs text-zinc-600">
-                    +{keys.length - 4} more
+                    +{totalKeys - keys.length} more
                   </p>
                 )}
               </div>
@@ -781,7 +799,7 @@ export default function DashboardPage() {
               Policies
               <DashboardInfoButton content={dashboardHelp.overviewPolicies} />
               <span className="text-zinc-500 text-sm font-normal">
-                ({policies.length})
+                ({totalPolicies})
               </span>
             </CardTitle>
             <Link
@@ -794,7 +812,7 @@ export default function DashboardPage() {
           <CardContent>
             {policies.length > 0 ? (
               <div className="space-y-2.5">
-                {policies.slice(0, 5).map((p) => (
+                {policies.map((p) => (
                   <div
                     key={p.id}
                     className="rounded-lg border border-white/5 bg-black/20 px-3 py-2"
@@ -844,9 +862,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
-                {policies.length > 5 && (
+                {totalPolicies > policies.length && (
                   <p className="text-xs text-zinc-600">
-                    +{policies.length - 5} more
+                    +{totalPolicies - policies.length} more
                   </p>
                 )}
               </div>

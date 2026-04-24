@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { policies, policyViolations, reviews } from "@/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { policies, policyRuleStats } from "@/db/schema";
+import { desc, eq, sql } from "drizzle-orm";
 import { createPolicySchema } from "@/lib/validators/policy";
 import { getOwnerId } from "@/lib/auth/owner";
 import { logAudit } from "@/lib/audit/log";
 import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
+import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
+import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { isPredefinedRule } from "@/lib/policies/predefined-rules";
 import { harmonizePolicyConfigSeverity } from "@/lib/policies/config";
@@ -24,7 +26,6 @@ function normalizedPolicyForCreate(input: ReturnType<typeof createPolicySchema.p
 }
 
 export async function GET(req: Request) {
-  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 
@@ -40,47 +41,36 @@ export async function GET(req: Request) {
 
   const reviewStats = await db
     .select({
-      policyId: reviews.policyId,
-      reviewFailureCount: sql<number>`count(*) filter (where ${reviews.pass} = false and ${reviews.severity} = 'error')`,
-      warningReviewCount: sql<number>`count(*) filter (where ${reviews.pass} = false and ${reviews.severity} = 'warning')`,
-      lastReviewAt: sql<string>`max(${reviews.reviewedAt})`,
+      ruleId: policyRuleStats.ruleId,
+      reviewFailureCount: policyRuleStats.reviewFailureCount,
+      warningReviewCount: policyRuleStats.warningReviewCount,
+      lastReviewAt: sql<string>`${policyRuleStats.lastReviewAt}`,
+      violationCount: policyRuleStats.violationCount,
+      lastViolationAt: sql<string>`${policyRuleStats.lastViolationAt}`,
     })
-    .from(reviews)
-    .where(eq(reviews.orgId, owner.ownerId))
-    .groupBy(reviews.policyId);
+    .from(policyRuleStats)
+    .where(eq(policyRuleStats.orgId, owner.ownerId));
 
-  const violationStats = await db
-    .select({
-      ruleId: policyViolations.ruleId,
-      violationCount: sql<number>`count(*)`,
-      lastViolationAt: sql<string>`max(${policyViolations.occurredAt})`,
-    })
-    .from(policyViolations)
-    .where(eq(policyViolations.orgId, owner.ownerId))
-    .groupBy(policyViolations.ruleId);
-
-  const reviewMap = new Map(reviewStats.map((row) => [row.policyId, row]));
-  const violationMap = new Map(violationStats.map((row) => [row.ruleId, row]));
+  const ruleStatsMap = new Map(reviewStats.map((row) => [row.ruleId, row]));
 
   const hydrated = rows.map((policy) => {
-    const review = reviewMap.get(policy.ruleId);
-    const violation = violationMap.get(policy.ruleId);
+    const stats = ruleStatsMap.get(policy.ruleId);
     const lastTriggeredAt =
-      [review?.lastReviewAt ?? null, violation?.lastViolationAt ?? null]
+      [stats?.lastReviewAt ?? null, stats?.lastViolationAt ?? null]
         .filter((value): value is string => Boolean(value))
         .sort()
         .at(-1) ?? null;
 
     return {
       ...policy,
-      reviewFailureCount: Number(review?.reviewFailureCount ?? 0),
-      warningReviewCount: Number(review?.warningReviewCount ?? 0),
-      violationCount: Number(violation?.violationCount ?? 0),
+      reviewFailureCount: Number(stats?.reviewFailureCount ?? 0),
+      warningReviewCount: Number(stats?.warningReviewCount ?? 0),
+      violationCount: Number(stats?.violationCount ?? 0),
       lastTriggeredAt,
       recentlyTriggered:
-        Number(review?.reviewFailureCount ?? 0) > 0 ||
-        Number(review?.warningReviewCount ?? 0) > 0 ||
-        Number(violation?.violationCount ?? 0) > 0,
+        Number(stats?.reviewFailureCount ?? 0) > 0 ||
+        Number(stats?.warningReviewCount ?? 0) > 0 ||
+        Number(stats?.violationCount ?? 0) > 0,
     };
   });
 
@@ -127,6 +117,9 @@ export async function POST(req: Request) {
         createdBy: owner.userId,
       })
       .returning();
+
+    await refreshOperationsSnapshot(owner.ownerId);
+    await invalidateOwnerRouteCache(owner.ownerId);
 
     logAudit({
       orgId: owner.ownerId,

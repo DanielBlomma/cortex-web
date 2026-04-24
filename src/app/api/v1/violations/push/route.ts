@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
+import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { policyViolations } from "@/db/schema";
+import { policyViolations, violationsDaily } from "@/db/schema";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { verifyHmac } from "@/lib/hmac";
 import { logAudit } from "@/lib/audit/log";
 import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
+import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
+import { upsertPolicyRuleStats } from "@/lib/operations/rollups";
 import { violationPushSchema } from "@/lib/validators/violation";
 import { applyRateLimit } from "@/lib/rate-limit";
+
+function violationDayKey(occurredAtIso: string): string {
+  return new Date(occurredAtIso).toISOString().slice(0, 10);
+}
 
 export async function POST(req: Request) {
   await ensureRuntimeSchema();
@@ -94,8 +101,79 @@ export async function POST(req: Request) {
     occurredAt: new Date(v.occurred_at),
   }));
 
+  const dailyRollups = new Map<
+    string,
+    { totalCount: number; errorCount: number; warningCount: number; infoCount: number }
+  >();
+  const ruleStats = new Map<
+    string,
+    { violationCount: number; lastViolationAt: Date | null }
+  >();
+  for (const violation of parsed.data.violations) {
+    const date = violationDayKey(violation.occurred_at);
+    const existing = dailyRollups.get(date) ?? {
+      totalCount: 0,
+      errorCount: 0,
+      warningCount: 0,
+      infoCount: 0,
+    };
+    existing.totalCount += 1;
+    if (violation.severity === "error") {
+      existing.errorCount += 1;
+    } else if (violation.severity === "warning") {
+      existing.warningCount += 1;
+    } else {
+      existing.infoCount += 1;
+    }
+    dailyRollups.set(date, existing);
+
+    const occurredAt = new Date(violation.occurred_at);
+    const existingRule = ruleStats.get(violation.rule_id) ?? {
+      violationCount: 0,
+      lastViolationAt: null,
+    };
+    existingRule.violationCount += 1;
+    existingRule.lastViolationAt =
+      !existingRule.lastViolationAt || occurredAt > existingRule.lastViolationAt
+        ? occurredAt
+        : existingRule.lastViolationAt;
+    ruleStats.set(violation.rule_id, existingRule);
+  }
+
   try {
-    await db.insert(policyViolations).values(rows);
+    await db.transaction(async (tx) => {
+      await tx.insert(policyViolations).values(rows);
+      for (const [date, rollup] of dailyRollups) {
+        await tx
+          .insert(violationsDaily)
+          .values({
+            orgId: key.orgId,
+            date,
+            totalCount: rollup.totalCount,
+            errorCount: rollup.errorCount,
+            warningCount: rollup.warningCount,
+            infoCount: rollup.infoCount,
+          })
+          .onConflictDoUpdate({
+            target: [violationsDaily.orgId, violationsDaily.date],
+            set: {
+              totalCount: sql`${violationsDaily.totalCount} + ${rollup.totalCount}`,
+              errorCount: sql`${violationsDaily.errorCount} + ${rollup.errorCount}`,
+              warningCount: sql`${violationsDaily.warningCount} + ${rollup.warningCount}`,
+              infoCount: sql`${violationsDaily.infoCount} + ${rollup.infoCount}`,
+            },
+          });
+      }
+      for (const [ruleId, stats] of ruleStats) {
+        await upsertPolicyRuleStats(tx, {
+          orgId: key.orgId,
+          ruleId,
+          violationCount: stats.violationCount,
+          lastViolationAt: stats.lastViolationAt,
+        });
+      }
+    });
+    await invalidateOwnerRouteCache(key.orgId);
   } catch (err) {
     console.error("Violation insert failed:", err);
     return NextResponse.json(

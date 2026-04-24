@@ -1,23 +1,19 @@
 import { NextResponse } from "next/server";
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  apiKeys,
-  auditLog,
+  operationsSnapshots,
   organizations,
-  policies,
-  reviews,
-  telemetryEvents,
-  workflowSnapshots,
 } from "@/db/schema";
 import { buildOperationalHealthSummary } from "@/lib/operations/health";
-import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import {
   assertOrgScopeHasDataOrThrow,
   OrgScopeMismatchError,
 } from "@/lib/org-scope";
 import { getOwnerId } from "@/lib/auth/owner";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { createRequestTiming } from "@/lib/perf/request-timing";
+import { cacheOwnerRoute } from "@/lib/cache/owner-route-cache";
 
 class OperationsSummaryQueryError extends Error {
   constructor(
@@ -26,18 +22,6 @@ class OperationsSummaryQueryError extends Error {
   ) {
     super(`Failed to build operations summary at ${step}`);
     this.name = "OperationsSummaryQueryError";
-  }
-}
-
-class SchemaMismatchError extends Error {
-  constructor(
-    public table: string,
-    public missingColumns: string[],
-  ) {
-    super(
-      `Schema mismatch for ${table}: missing columns ${missingColumns.join(", ")}`,
-    );
-    this.name = "SchemaMismatchError";
   }
 }
 
@@ -79,195 +63,109 @@ function describeError(error: unknown): string {
   return "Unknown error";
 }
 
-async function runStep<T>(step: string, query: () => Promise<T>): Promise<T> {
+async function runStep<T>(
+  timing: ReturnType<typeof createRequestTiming>,
+  step: string,
+  query: () => Promise<T>,
+): Promise<T> {
   try {
-    return await query();
+    return await timing.timeStep(step, query);
   } catch (error) {
     throw new OperationsSummaryQueryError(step, error);
   }
 }
 
-async function assertTableColumns(
-  table: string,
-  requiredColumns: string[],
-): Promise<void> {
-  const rows = (await db.execute(
-    sql`
-      select column_name
-      from information_schema.columns
-      where table_schema = current_schema()
-        and table_name = ${table}
-    `,
-  )) as Array<{ column_name: string }>;
-
-  const existing = new Set(rows.map((row) => row.column_name));
-  const missing = requiredColumns.filter((column) => !existing.has(column));
-
-  if (missing.length > 0) {
-    throw new SchemaMismatchError(table, missing);
-  }
-}
-
 export async function GET(req: Request) {
+  const timing = createRequestTiming();
+
   try {
     const rl = applyRateLimit(req, 30);
     if (rl) return rl;
 
-    const owner = await getOwnerId();
+    const owner = await timing.timeStep("resolve_owner", () => getOwnerId());
     if (!owner) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const ownerId = owner.ownerId;
-    await ensureRuntimeSchema();
-    await assertOrgScopeHasDataOrThrow(ownerId);
-    await assertTableColumns("audit_log", [
-      "org_id",
-      "event_type",
-      "evidence_level",
-      "occurred_at",
-    ]);
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3_600_000);
-    const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
-    const [
-      orgRows,
-      keyRows,
-      policyRows,
-      telemetryRows,
-      auditRows,
-      workflowRows,
-      reviewRows,
-    ] = await Promise.all([
-      runStep("organization", () =>
-        db
-          .select({ plan: organizations.plan })
-          .from(organizations)
-          .where(eq(organizations.id, ownerId))
-          .limit(1),
-      ),
-      runStep("api_keys", () =>
-        db
-          .select({
-            activeApiKeys: sql<number>`count(*)`,
-          })
-          .from(apiKeys)
-          .where(and(eq(apiKeys.orgId, ownerId), isNull(apiKeys.revokedAt))),
-      ),
-      runStep("policies", () =>
-        db
-          .select({
-            activePolicies: sql<number>`count(*) filter (where ${policies.status} = 'active')`,
-            enforcedPolicies: sql<number>`count(*) filter (where ${policies.status} = 'active' and ${policies.enforce} = true)`,
-            blockingPolicies: sql<number>`count(*) filter (where ${policies.status} = 'active' and ${policies.severity} in ('block', 'error'))`,
-          })
-          .from(policies)
-          .where(eq(policies.orgId, ownerId)),
-      ),
-      runStep("telemetry_events", () =>
-        db
-          .select({
-            activeInstances: sql<number>`count(distinct coalesce(${telemetryEvents.instanceId}, ${telemetryEvents.apiKeyId}::text))`,
-            distinctVersions: sql<number>`count(distinct ${telemetryEvents.clientVersion}) filter (where ${telemetryEvents.clientVersion} is not null)`,
-            lastTelemetryAt: sql<string>`max(${telemetryEvents.receivedAt})`,
-            totalToolCalls: sql<number>`coalesce(sum(${telemetryEvents.totalToolCalls}), 0)`,
-            failedToolCalls: sql<number>`coalesce(sum(${telemetryEvents.failedToolCalls}), 0)`,
-          })
-          .from(telemetryEvents)
-          .where(eq(telemetryEvents.orgId, ownerId)),
-      ),
-      runStep("audit_log", () =>
-        db
-          .select({
-            lastAuditAt: sql<string>`max(${auditLog.occurredAt})`,
-            lastPolicySyncAt: sql<string>`max(${auditLog.occurredAt}) filter (where ${auditLog.eventType} = 'policy_sync')`,
-            requiredAuditEvents30d: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'required' and ${auditLog.occurredAt} >= ${thirtyDaysAgoIso}::timestamptz)`,
-          })
-          .from(auditLog)
-          .where(eq(auditLog.orgId, ownerId)),
-      ),
-      runStep("workflow_snapshots", () =>
-        db
-          .select({
-            workflowSessions30d: sql<number>`count(distinct ${workflowSnapshots.sessionId})`,
-            approvedSessions30d: sql<number>`count(distinct ${workflowSnapshots.sessionId}) filter (where ${workflowSnapshots.approvalStatus} = 'approved')`,
-            blockedSessions30d: sql<number>`count(distinct ${workflowSnapshots.sessionId}) filter (where ${workflowSnapshots.approvalStatus} = 'blocked')`,
-          })
-          .from(workflowSnapshots)
-          .where(
-            and(
-              eq(workflowSnapshots.orgId, ownerId),
-              gte(workflowSnapshots.receivedAt, thirtyDaysAgo),
-            ),
-          ),
-      ),
-      runStep("reviews", () =>
-        db
-          .select({
-            reviewedSessions30d: sql<number>`count(distinct ${reviews.sessionId})`,
-          })
-          .from(reviews)
-          .where(
-            and(
-              eq(reviews.orgId, ownerId),
-              gte(reviews.reviewedAt, thirtyDaysAgo),
-            ),
-          ),
-      ),
-    ]);
-
-    const org = orgRows[0];
-    const keyStats = keyRows[0];
-    const policyStats = policyRows[0];
-    const telemetryStats = telemetryRows[0];
-    const auditStats = auditRows[0];
-    const workflowStats = workflowRows[0];
-    const reviewStats = reviewRows[0];
-
-    const summary = buildOperationalHealthSummary({
-      plan: org?.plan ?? "free",
-      activePolicies: Number(policyStats?.activePolicies ?? 0),
-      enforcedPolicies: Number(policyStats?.enforcedPolicies ?? 0),
-      blockingPolicies: Number(policyStats?.blockingPolicies ?? 0),
-      activeApiKeys: Number(keyStats?.activeApiKeys ?? 0),
-      activeInstances: Number(telemetryStats?.activeInstances ?? 0),
-      distinctVersions: Number(telemetryStats?.distinctVersions ?? 0),
-      lastPolicySyncAt: auditStats?.lastPolicySyncAt ?? null,
-      lastTelemetryAt: telemetryStats?.lastTelemetryAt ?? null,
-      totalToolCalls: Number(telemetryStats?.totalToolCalls ?? 0),
-      failedToolCalls: Number(telemetryStats?.failedToolCalls ?? 0),
-      workflowSessions30d: Number(workflowStats?.workflowSessions30d ?? 0),
-      reviewedSessions30d: Number(reviewStats?.reviewedSessions30d ?? 0),
-      approvedSessions30d: Number(workflowStats?.approvedSessions30d ?? 0),
-      blockedSessions30d: Number(workflowStats?.blockedSessions30d ?? 0),
-      requiredAuditEvents30d: Number(auditStats?.requiredAuditEvents30d ?? 0),
-      lastAuditAt: auditStats?.lastAuditAt ?? null,
-    });
-
-    return NextResponse.json({
-      generatedAt: new Date().toISOString(),
-      summary,
-    });
-  } catch (error) {
-    if (error instanceof OrgScopeMismatchError) {
-      return NextResponse.json(
-        {
-          code: "org_scope_mismatch",
-          error: error.message,
-          ownerId: error.ownerId,
-        },
-        { status: 409 },
+      return timing.attach(
+        NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
       );
     }
 
-    if (error instanceof SchemaMismatchError) {
-      return NextResponse.json(
-        {
-          code: "schema_unavailable",
-          error: error.message,
-          table: error.table,
-          missingColumns: error.missingColumns,
+    const ownerId = owner.ownerId;
+    await timing.timeStep("assert_org_scope", () =>
+      assertOrgScopeHasDataOrThrow(ownerId),
+    );
+    const payload = await timing.timeStep("route_cache", () =>
+      cacheOwnerRoute({
+        namespace: "operations-summary",
+        ownerId,
+        load: async () => {
+          const [orgRows, snapshotRows] = await timing.timeStep(
+            "load_summary_dependencies",
+            () =>
+              Promise.all([
+                runStep(timing, "organization", () =>
+                  db
+                    .select({ plan: organizations.plan })
+                    .from(organizations)
+                    .where(eq(organizations.id, ownerId))
+                    .limit(1),
+                ),
+                runStep(timing, "operations_snapshots", () =>
+                  db
+                    .select()
+                    .from(operationsSnapshots)
+                    .where(eq(operationsSnapshots.orgId, ownerId))
+                    .limit(1),
+                ),
+              ]),
+          );
+
+          const org = orgRows[0];
+          const snapshot = snapshotRows[0];
+
+          if (!snapshot) {
+            throw new Error(`Operations snapshot missing for ${ownerId}`);
+          }
+
+          return {
+            generatedAt: new Date().toISOString(),
+            summary: buildOperationalHealthSummary({
+              plan: org?.plan ?? "free",
+              activePolicies: snapshot.activePolicies,
+              enforcedPolicies: snapshot.enforcedPolicies,
+              blockingPolicies: snapshot.blockingPolicies,
+              activeApiKeys: snapshot.activeApiKeys,
+              activeInstances: snapshot.activeInstances,
+              distinctVersions: snapshot.distinctVersions,
+              lastPolicySyncAt: snapshot.lastPolicySyncAt?.toISOString() ?? null,
+              lastTelemetryAt: snapshot.lastTelemetryAt?.toISOString() ?? null,
+              totalToolCalls: snapshot.totalToolCalls,
+              failedToolCalls: snapshot.failedToolCalls,
+              workflowSessions30d: snapshot.workflowSessions30d,
+              reviewedSessions30d: snapshot.reviewedSessions30d,
+              approvedSessions30d: snapshot.approvedSessions30d,
+              blockedSessions30d: snapshot.blockedSessions30d,
+              requiredAuditEvents30d: snapshot.requiredAuditEvents30d,
+              lastAuditAt: snapshot.lastAuditAt?.toISOString() ?? null,
+            }),
+          };
         },
-        { status: 500 },
+      }),
+    );
+
+    return timing.attach(
+      NextResponse.json(payload),
+    );
+  } catch (error) {
+    if (error instanceof OrgScopeMismatchError) {
+      return timing.attach(
+        NextResponse.json(
+          {
+            code: "org_scope_mismatch",
+            error: error.message,
+            ownerId: error.ownerId,
+          },
+          { status: 409 },
+        ),
       );
     }
 
@@ -277,25 +175,29 @@ export async function GET(req: Request) {
         `[operations.summary] Failed at ${error.step}: ${detail}`,
         error.cause,
       );
-      return NextResponse.json(
-        {
-          code: "summary_unavailable",
-          error: error.message,
-          step: error.step,
-          detail,
-        },
-        { status: 500 },
+      return timing.attach(
+        NextResponse.json(
+          {
+            code: "summary_unavailable",
+            error: error.message,
+            step: error.step,
+            detail,
+          },
+          { status: 500 },
+        ),
       );
     }
 
     console.error("[operations.summary] Failed to build operations summary", error);
-    return NextResponse.json(
-      {
-        code: "summary_unavailable",
-        error: "Failed to build operations summary",
-        detail: describeError(error),
-      },
-      { status: 500 },
+    return timing.attach(
+      NextResponse.json(
+        {
+          code: "summary_unavailable",
+          error: "Failed to build operations summary",
+          detail: describeError(error),
+        },
+        { status: 500 },
+      ),
     );
   }
 }

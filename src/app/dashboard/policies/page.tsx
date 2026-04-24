@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { DashboardInfoButton } from "@/components/dashboard/dashboard-info-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { dashboardHelp } from "@/lib/dashboard/help-content";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -497,9 +499,16 @@ export default function PoliciesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Policies / Rules</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-white">Policies / Rules</h1>
+            <DashboardInfoButton
+              content={dashboardHelp.policiesPage}
+              variant="pill"
+              label="Page guide"
+            />
+          </div>
           <p className="text-sm text-zinc-400 mt-1">
             Add or remove rules directly from the dashboard, keep selected ones
             highlighted, and manage custom policies without leaving the page.
@@ -519,7 +528,13 @@ export default function PoliciesPage() {
 
       <Card className="bg-white/[0.02] border-white/5">
         <CardHeader>
-          <CardTitle className="text-white text-base">Selected</CardTitle>
+          <CardTitle className="text-white text-base">
+            Selected
+            <DashboardInfoButton
+              content={dashboardHelp.policiesSelected}
+              className="ml-2 inline-flex"
+            />
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between gap-4">
@@ -557,7 +572,13 @@ export default function PoliciesPage() {
 
       <Card className="bg-white/[0.02] border-white/5">
         <CardHeader>
-          <CardTitle className="text-white text-base">Predefined Rules</CardTitle>
+          <CardTitle className="text-white text-base">
+            Predefined Rules
+            <DashboardInfoButton
+              content={dashboardHelp.policiesPredefined}
+              className="ml-2 inline-flex"
+            />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -711,7 +732,13 @@ export default function PoliciesPage() {
 
       <Card className="bg-white/[0.02] border-white/5">
         <CardHeader>
-          <CardTitle className="text-white text-base">Custom Policies</CardTitle>
+          <CardTitle className="text-white text-base">
+            Custom Policies
+            <DashboardInfoButton
+              content={dashboardHelp.policiesCustom}
+              className="ml-2 inline-flex"
+            />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (

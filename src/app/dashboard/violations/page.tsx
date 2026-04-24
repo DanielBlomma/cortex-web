@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { DashboardInfoButton } from "@/components/dashboard/dashboard-info-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { dashboardHelp } from "@/lib/dashboard/help-content";
 import { AlertTriangle, ShieldAlert, Info, FileWarning } from "lucide-react";
 import { formatDate, formatDateTime } from "@/lib/dates";
 
@@ -105,11 +107,18 @@ export default function ViolationsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Policy Violations</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Policy rule violations reported by cortex-enterprise instances.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Policy Violations</h1>
+          <p className="text-sm text-zinc-400 mt-1">
+            Policy rule violations reported by cortex-enterprise instances.
+          </p>
+        </div>
+        <DashboardInfoButton
+          content={dashboardHelp.violationsPage}
+          variant="pill"
+          label="Page guide"
+        />
       </div>
 
       {error && (
@@ -177,6 +186,7 @@ export default function ViolationsPage() {
                 <CardTitle className="text-white text-base flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-400" />
                   Daily Violations — Last {daily.length} Days
+                  <DashboardInfoButton content={dashboardHelp.violationsDaily} />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -256,6 +266,10 @@ export default function ViolationsPage() {
               <CardHeader>
                 <CardTitle className="text-white text-base">
                   Violations by Rule
+                  <DashboardInfoButton
+                    content={dashboardHelp.violationsByRule}
+                    className="ml-2 inline-flex"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -308,6 +322,10 @@ export default function ViolationsPage() {
             <CardHeader>
               <CardTitle className="text-white text-base">
                 Recent Violations
+                <DashboardInfoButton
+                  content={dashboardHelp.violationsRecent}
+                  className="ml-2 inline-flex"
+                />
               </CardTitle>
             </CardHeader>
             <CardContent>

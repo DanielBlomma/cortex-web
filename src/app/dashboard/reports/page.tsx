@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DashboardInfoButton } from "@/components/dashboard/dashboard-info-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import {
   Gauge,
   GitBranch,
 } from "lucide-react";
+import { dashboardHelp } from "@/lib/dashboard/help-content";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import type { Policy as DashboardPolicy } from "@/lib/types/policy";
 
@@ -350,11 +352,19 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Compliance Reports</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Generate evidence-backed control reports for ISO 27001, ISO 42001, and SOC 2.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Compliance Reports</h1>
+          <p className="text-sm text-zinc-400 mt-1">
+            Generate evidence-backed control reports for ISO 27001, ISO 42001,
+            and SOC 2.
+          </p>
+        </div>
+        <DashboardInfoButton
+          content={dashboardHelp.compliancePage}
+          variant="pill"
+          label="Page guide"
+        />
       </div>
 
       <Card className="bg-white/[0.02] border-white/5">
@@ -423,6 +433,9 @@ export default function ReportsPage() {
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                 Control Coverage
+                <DashboardInfoButton
+                  content={dashboardHelp.complianceControlCoverage}
+                />
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -524,6 +537,9 @@ export default function ReportsPage() {
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <Shield className="h-4 w-4 text-blue-400" />
                 Policy Governance
+                <DashboardInfoButton
+                  content={dashboardHelp.compliancePolicyGovernance}
+                />
                 <Badge variant="secondary" className="text-[10px] ml-auto">
                   ISO 27001 A.5 / SOC 2 CC1
                 </Badge>
@@ -629,6 +645,9 @@ export default function ReportsPage() {
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <Key className="h-4 w-4 text-violet-400" />
                 Access Control
+                <DashboardInfoButton
+                  content={dashboardHelp.complianceAccessControl}
+                />
                 <Badge variant="secondary" className="text-[10px] ml-auto">
                   ISO 27001 A.9 / SOC 2 CC6
                 </Badge>
@@ -710,6 +729,9 @@ export default function ReportsPage() {
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-400" />
                 Policy Violations
+                <DashboardInfoButton
+                  content={dashboardHelp.complianceViolations}
+                />
                 <Badge variant="secondary" className="text-[10px] ml-auto">
                   ISO 27001 A.12.4 / SOC 2 CC7
                 </Badge>
@@ -804,6 +826,9 @@ export default function ReportsPage() {
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <Gauge className="h-4 w-4 text-emerald-400" />
                 Review Evidence
+                <DashboardInfoButton
+                  content={dashboardHelp.complianceReviewEvidence}
+                />
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -849,6 +874,9 @@ export default function ReportsPage() {
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <GitBranch className="h-4 w-4 text-sky-300" />
                 Workflow Evidence
+                <DashboardInfoButton
+                  content={dashboardHelp.complianceWorkflowEvidence}
+                />
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -923,6 +951,9 @@ export default function ReportsPage() {
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <ClipboardList className="h-4 w-4 text-zinc-400" />
                 Audit Trail
+                <DashboardInfoButton
+                  content={dashboardHelp.complianceAuditTrail}
+                />
                 <Badge variant="secondary" className="text-[10px] ml-auto">
                   ISO 27001 A.12.4.1 / SOC 2 CC7.2
                 </Badge>
@@ -1009,6 +1040,10 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle className="text-white text-base">
                 System Usage (Period)
+                <DashboardInfoButton
+                  content={dashboardHelp.complianceSystemUsage}
+                  className="ml-2 inline-flex"
+                />
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1067,6 +1102,10 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle className="text-white text-base">
                 Residual Customer Responsibilities
+                <DashboardInfoButton
+                  content={dashboardHelp.complianceResponsibilities}
+                  className="ml-2 inline-flex"
+                />
               </CardTitle>
             </CardHeader>
             <CardContent>

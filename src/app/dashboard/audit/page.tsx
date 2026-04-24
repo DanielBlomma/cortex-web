@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { DashboardInfoButton } from "@/components/dashboard/dashboard-info-button";
 import { FileSearch, ShieldCheck, TerminalSquare, Globe } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { dashboardHelp } from "@/lib/dashboard/help-content";
 
 type AuditEvent = {
   id: string;
@@ -105,11 +107,19 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Audit Trail</h1>
-        <p className="mt-1 text-sm text-zinc-400">
-          Search evidence from local enterprise activity and web control-plane actions.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Audit Trail</h1>
+          <p className="mt-1 text-sm text-zinc-400">
+            Search evidence from local enterprise activity and web control-plane
+            actions.
+          </p>
+        </div>
+        <DashboardInfoButton
+          content={dashboardHelp.auditPage}
+          variant="pill"
+          label="Page guide"
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
@@ -236,6 +246,7 @@ export default function AuditPage() {
             <CardTitle className="flex items-center gap-2 text-white text-base">
               <FileSearch className="h-4 w-4 text-zinc-400" />
               Event Types
+              <DashboardInfoButton content={dashboardHelp.auditEventTypes} />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -261,7 +272,13 @@ export default function AuditPage() {
 
         <Card className="border-white/5 bg-white/[0.02]">
           <CardHeader>
-            <CardTitle className="text-white text-base">Recent Evidence</CardTitle>
+            <CardTitle className="text-white text-base">
+              Recent Evidence
+              <DashboardInfoButton
+                content={dashboardHelp.auditRecentEvidence}
+                className="ml-2 inline-flex"
+              />
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (

@@ -19,8 +19,10 @@ import {
   CircleDot,
   AlertCircle,
 } from "lucide-react";
+import { DashboardInfoButton } from "@/components/dashboard/dashboard-info-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { dashboardHelp } from "@/lib/dashboard/help-content";
 import Link from "next/link";
 import type { Policy } from "@/lib/types/policy";
 
@@ -200,11 +202,18 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Overview</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Your organization&apos;s Cortex status at a glance.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Overview</h1>
+          <p className="text-sm text-zinc-400 mt-1">
+            Your organization&apos;s Cortex status at a glance.
+          </p>
+        </div>
+        <DashboardInfoButton
+          content={dashboardHelp.overviewPage}
+          variant="pill"
+          label="Page guide"
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-4">
@@ -213,6 +222,9 @@ export default function DashboardPage() {
             <CardTitle className="text-white text-base flex items-center gap-2">
               <HeartPulse className="h-4 w-4 text-zinc-400" />
               Operational Health
+              <DashboardInfoButton
+                content={dashboardHelp.overviewOperationalHealth}
+              />
             </CardTitle>
             {operations?.summary.package && (
               <Badge
@@ -274,6 +286,9 @@ export default function DashboardPage() {
             <CardTitle className="text-white text-base flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4 text-zinc-400" />
               Rollout Checklist
+              <DashboardInfoButton
+                content={dashboardHelp.overviewRolloutChecklist}
+              />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -450,6 +465,7 @@ export default function DashboardPage() {
             <CardTitle className="text-white text-base flex items-center gap-2">
               <Activity className="h-4 w-4 text-zinc-400" />
               Searches — Last {daily.length || 30} Days
+              <DashboardInfoButton content={dashboardHelp.overviewSearchActivity} />
             </CardTitle>
             <Link
               href="/dashboard/analytics"
@@ -496,6 +512,7 @@ export default function DashboardPage() {
             <CardTitle className="text-white text-base flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-amber-400" />
               Violations
+              <DashboardInfoButton content={dashboardHelp.overviewViolations} />
             </CardTitle>
             <Link
               href="/dashboard/violations"
@@ -676,6 +693,7 @@ export default function DashboardPage() {
             <CardTitle className="text-white text-base flex items-center gap-2">
               <Key className="h-4 w-4 text-zinc-400" />
               Access
+              <DashboardInfoButton content={dashboardHelp.overviewAccess} />
               <span className="text-zinc-500 text-sm font-normal">
                 ({keys.length})
               </span>
@@ -724,6 +742,7 @@ export default function DashboardPage() {
             <CardTitle className="text-white text-base flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-zinc-400" />
               Policies
+              <DashboardInfoButton content={dashboardHelp.overviewPolicies} />
               <span className="text-zinc-500 text-sm font-normal">
                 ({policies.length})
               </span>
@@ -814,6 +833,9 @@ export default function DashboardPage() {
                   <span className="text-sm font-medium text-white">
                     Token Savings
                   </span>
+                  <DashboardInfoButton
+                    content={dashboardHelp.overviewTokenSavings}
+                  />
                 </div>
                 <div className="text-right text-sm">
                   <span className="text-emerald-400 font-bold">

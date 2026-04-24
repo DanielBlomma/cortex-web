@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { DashboardInfoButton } from "@/components/dashboard/dashboard-info-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { dashboardHelp } from "@/lib/dashboard/help-content";
 import { Search, Zap, FileText, RefreshCw } from "lucide-react";
 
 type Totals = {
@@ -96,11 +98,18 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Analytics</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Telemetry data across all cloud-connected instances.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Analytics</h1>
+          <p className="text-sm text-zinc-400 mt-1">
+            Telemetry data across all cloud-connected instances.
+          </p>
+        </div>
+        <DashboardInfoButton
+          content={dashboardHelp.analyticsPage}
+          variant="pill"
+          label="Page guide"
+        />
       </div>
 
       {error && (
@@ -155,6 +164,9 @@ export default function AnalyticsPage() {
                 <CardTitle className="text-white text-base flex items-center gap-2">
                   <Zap className="h-4 w-4 text-emerald-400" />
                   Token Savings
+                  <DashboardInfoButton
+                    content={dashboardHelp.analyticsTokenSavings}
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -269,6 +281,10 @@ export default function AnalyticsPage() {
             <CardHeader>
               <CardTitle className="text-white text-base">
                 Daily Breakdown
+                <DashboardInfoButton
+                  content={dashboardHelp.analyticsDailyBreakdown}
+                  className="ml-2 inline-flex"
+                />
               </CardTitle>
             </CardHeader>
             <CardContent>

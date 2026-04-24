@@ -29,20 +29,51 @@ class OperationsSummaryQueryError extends Error {
   }
 }
 
-function describeError(error: unknown): string {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string"
+class SchemaMismatchError extends Error {
+  constructor(
+    public table: string,
+    public missingColumns: string[],
   ) {
-    const code =
-      "code" in error && typeof error.code === "string" ? error.code : null;
-    return code ? `${code}: ${error.message}` : error.message;
+    super(
+      `Schema mismatch for ${table}: missing columns ${missingColumns.join(", ")}`,
+    );
+    this.name = "SchemaMismatchError";
+  }
+}
+
+function rootCause(error: unknown): unknown {
+  let current = error;
+
+  while (
+    typeof current === "object" &&
+    current !== null &&
+    "cause" in current &&
+    current.cause
+  ) {
+    current = current.cause;
   }
 
-  if (error instanceof Error) {
-    return error.message;
+  return current;
+}
+
+function describeError(error: unknown): string {
+  const resolved = rootCause(error);
+
+  if (
+    typeof resolved === "object" &&
+    resolved !== null &&
+    "message" in resolved &&
+    typeof resolved.message === "string"
+  ) {
+    const code =
+      "code" in resolved && typeof resolved.code === "string"
+        ? resolved.code
+        : null;
+    return code ? `${code}: ${resolved.message}` : resolved.message;
+  }
+
+  if (resolved instanceof Error) {
+    return resolved.message;
   }
 
   return "Unknown error";
@@ -53,6 +84,27 @@ async function runStep<T>(step: string, query: () => Promise<T>): Promise<T> {
     return await query();
   } catch (error) {
     throw new OperationsSummaryQueryError(step, error);
+  }
+}
+
+async function assertTableColumns(
+  table: string,
+  requiredColumns: string[],
+): Promise<void> {
+  const rows = (await db.execute(
+    sql`
+      select column_name
+      from information_schema.columns
+      where table_schema = current_schema()
+        and table_name = ${table}
+    `,
+  )) as Array<{ column_name: string }>;
+
+  const existing = new Set(rows.map((row) => row.column_name));
+  const missing = requiredColumns.filter((column) => !existing.has(column));
+
+  if (missing.length > 0) {
+    throw new SchemaMismatchError(table, missing);
   }
 }
 
@@ -69,6 +121,12 @@ export async function GET(req: Request) {
     const ownerId = owner.ownerId;
     await ensureRuntimeSchema();
     await assertOrgScopeHasDataOrThrow(ownerId);
+    await assertTableColumns("audit_log", [
+      "org_id",
+      "event_type",
+      "evidence_level",
+      "occurred_at",
+    ]);
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3_600_000);
     const [
       orgRows,
@@ -197,6 +255,18 @@ export async function GET(req: Request) {
           ownerId: error.ownerId,
         },
         { status: 409 },
+      );
+    }
+
+    if (error instanceof SchemaMismatchError) {
+      return NextResponse.json(
+        {
+          code: "schema_unavailable",
+          error: error.message,
+          table: error.table,
+          missingColumns: error.missingColumns,
+        },
+        { status: 500 },
       );
     }
 

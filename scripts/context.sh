@@ -8,14 +8,8 @@ print_help() {
 Usage: ./scripts/context.sh <command> [options]
 
 Commands:
-  bootstrap                        Install deps + full ingest + graph load
   ingest [--changed] [--verbose]   Index docs/code/design context into .context
-  embed [--changed]                Generate semantic embeddings for indexed entities
-  update                           Ingest changed files + rebuild graph
-  watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
-                                    Continuous background update loop
   refresh [--changed] [--verbose]  Alias for ingest
-  graph-load [--no-reset]          Build RyuGraph DB from indexed context
   note <title> [text]              Save tacit knowledge note into .context/notes
   plan [show|reset]                Show or reset automatic plan/progress state
   todo [text|list|done <id>|reopen <id>|remove <id>]
@@ -33,36 +27,22 @@ fi
 TRACK_EVENT=""
 
 case "$COMMAND" in
-  bootstrap)
-    "$SCRIPT_DIR/bootstrap.sh" "$@"
-    TRACK_EVENT="bootstrap"
-    ;;
   ingest)
     "$SCRIPT_DIR/ingest.sh" "$@"
     TRACK_EVENT="ingest"
-    ;;
-  embed)
-    "$SCRIPT_DIR/embed.sh" "$@"
-    TRACK_EVENT="embed"
-    ;;
-  update)
-    "$SCRIPT_DIR/update-context.sh" "$@"
-    TRACK_EVENT="update"
-    ;;
-  watch)
-    "$SCRIPT_DIR/watch.sh" "$@"
     ;;
   refresh)
     "$SCRIPT_DIR/refresh.sh" "$@"
     TRACK_EVENT="refresh"
     ;;
-  graph-load)
-    "$SCRIPT_DIR/load-ryu.sh" "$@"
-    TRACK_EVENT="graph-load"
-    ;;
   note)
     "$SCRIPT_DIR/capture-note.sh" "$@"
     TRACK_EVENT="note"
+    ;;
+  bootstrap|embed|update|watch|graph-load)
+    echo "Command removed: $COMMAND"
+    echo "The local mcp/ tooling has been removed from cortex-web."
+    exit 1
     ;;
   plan)
     PLAN_SUBCOMMAND="${1:-show}"

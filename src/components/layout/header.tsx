@@ -7,15 +7,23 @@ import { dark } from "@clerk/themes";
 export function Header() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const currentUrl = searchParams.size > 0 ? `${pathname}?${searchParams.toString()}` : pathname;
+
+  const buildScopedUrl = (scope: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("scope", scope);
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  };
 
   return (
     <header className="h-14 border-b border-white/5 bg-[#0a0a0f] flex items-center justify-between px-6">
       <div className="flex items-center gap-4">
         <OrganizationSwitcher
           hidePersonal
-          afterSelectOrganizationUrl={currentUrl}
-          afterSelectPersonalUrl={currentUrl}
+          afterSelectOrganizationUrl={(organization) =>
+            buildScopedUrl(organization.id)
+          }
+          afterSelectPersonalUrl={() => buildScopedUrl("personal")}
           appearance={{
             baseTheme: dark,
             variables: {

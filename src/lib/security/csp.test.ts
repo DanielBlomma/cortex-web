@@ -13,4 +13,9 @@ describe("buildAppCspHeader", () => {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev",
     );
   });
+
+  it("allows Clerk telemetry connections", () => {
+    const csp = buildAppCspHeader();
+    expect(csp).toContain("https://clerk-telemetry.com");
+  });
 });

@@ -5,7 +5,7 @@ const appCspDirectives = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self'",
-  "connect-src 'self' https://*.clerk.accounts.dev https://api.clerk.com",
+  "connect-src 'self' https://*.clerk.accounts.dev https://api.clerk.com https://clerk-telemetry.com",
   "frame-src https://*.clerk.accounts.dev",
 ];
 

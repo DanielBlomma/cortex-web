@@ -107,17 +107,35 @@ export default function RolloutPage() {
 
   const fetchData = useCallback(async () => {
     try {
+      const readJson = async <T,>(url: string): Promise<T> => {
+        const res = await fetch(url);
+        const data = (await res.json().catch(() => null)) as
+          | Record<string, unknown>
+          | null;
+        if (!res.ok) {
+          const message =
+            typeof data?.error === "string"
+              ? data.error
+              : `Failed to load ${url}`;
+          const detail =
+            typeof data?.detail === "string" ? ` (${data.detail})` : "";
+          throw new Error(`${message}${detail}`);
+        }
+        return data as T;
+      };
+
       const [opsRes, keysRes] = await Promise.allSettled([
-        fetch("/api/v1/operations/summary"),
+        readJson<OperationsSummary>("/api/v1/operations/summary"),
         fetch("/api/v1/api-keys"),
       ]);
 
-      if (opsRes.status !== "fulfilled" || !opsRes.value.ok) {
-        throw new Error("Failed to load rollout summary");
+      if (opsRes.status !== "fulfilled") {
+        throw opsRes.reason instanceof Error
+          ? opsRes.reason
+          : new Error("Failed to load rollout summary");
       }
 
-      const opsJson = await opsRes.value.json();
-      setOperations(opsJson);
+      setOperations(opsRes.value);
 
       if (keysRes.status === "fulfilled") {
         if (keysRes.value.ok) {
@@ -133,8 +151,12 @@ export default function RolloutPage() {
       } else {
         throw new Error("Failed to load API keys");
       }
-    } catch {
-      setError("Failed to load rollout readiness data");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load rollout readiness data",
+      );
     } finally {
       setLoading(false);
     }

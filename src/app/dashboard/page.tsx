@@ -171,8 +171,12 @@ export default function DashboardPage() {
         | Record<string, unknown>
         | null;
       if (!res.ok) {
+        const message =
+          typeof data?.error === "string" ? data.error : `Failed to load ${url}`;
+        const detail =
+          typeof data?.detail === "string" ? ` (${data.detail})` : "";
         throw new Error(
-          typeof data?.error === "string" ? data.error : `Failed to load ${url}`,
+          `${message}${detail}`,
         );
       }
       return data as T;

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { telemetryEvents, policies } from "@/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
@@ -10,10 +9,48 @@ import {
 } from "@/lib/org-scope";
 import { TELEMETRY_RETENTION_POLICY } from "@/lib/telemetry/retention";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { getOwnerId } from "@/lib/auth/owner";
 
 // Average tokens per context result — used to estimate total token cost
 // when enterprise hasn't sent estimated_tokens_total yet.
 const AVG_TOKENS_PER_RESULT = 400;
+
+class TelemetrySummaryQueryError extends Error {
+  constructor(
+    public step: string,
+    public cause: unknown,
+  ) {
+    super(`Failed to load telemetry summary at ${step}`);
+    this.name = "TelemetrySummaryQueryError";
+  }
+}
+
+function describeError(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    const code =
+      "code" in error && typeof error.code === "string" ? error.code : null;
+    return code ? `${code}: ${error.message}` : error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Unknown error";
+}
+
+async function runStep<T>(step: string, query: () => Promise<T>): Promise<T> {
+  try {
+    return await query();
+  } catch (error) {
+    throw new TelemetrySummaryQueryError(step, error);
+  }
+}
 
 function estimateTotal(
   saved: number,
@@ -31,84 +68,92 @@ export async function GET(req: Request) {
     const rl = applyRateLimit(req, 30);
     if (rl) return rl;
 
-    const { orgId, userId } = await auth();
-    if (!userId)
+    const owner = await getOwnerId();
+    if (!owner)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const ownerId = orgId ?? `personal_${userId}`;
+    const ownerId = owner.ownerId;
     await ensureRuntimeSchema();
     await assertOrgScopeHasDataOrThrow(ownerId);
 
     // Aggregate totals from telemetry_events
-    const [totals] = await db
-      .select({
-        totalToolCalls: sql<number>`coalesce(sum(${telemetryEvents.totalToolCalls}), 0)`,
-        totalSuccessfulToolCalls: sql<number>`coalesce(sum(${telemetryEvents.successfulToolCalls}), 0)`,
-        totalFailedToolCalls: sql<number>`coalesce(sum(${telemetryEvents.failedToolCalls}), 0)`,
-        totalDurationMs: sql<number>`coalesce(sum(${telemetryEvents.totalDurationMs}), 0)`,
-        totalSessionStarts: sql<number>`coalesce(sum(${telemetryEvents.sessionStarts}), 0)`,
-        totalSessionEnds: sql<number>`coalesce(sum(${telemetryEvents.sessionEnds}), 0)`,
-        totalSessionDurationMs: sql<number>`coalesce(sum(${telemetryEvents.sessionDurationMsTotal}), 0)`,
-        totalSearches: sql<number>`coalesce(sum(${telemetryEvents.searches}), 0)`,
-        totalRelatedLookups: sql<number>`coalesce(sum(${telemetryEvents.relatedLookups}), 0)`,
-        totalRuleLookups: sql<number>`coalesce(sum(${telemetryEvents.ruleLookups}), 0)`,
-        totalReloads: sql<number>`coalesce(sum(${telemetryEvents.reloads}), 0)`,
-        totalCallerLookups: sql<number>`coalesce(sum(${telemetryEvents.callerLookups}), 0)`,
-        totalTraceLookups: sql<number>`coalesce(sum(${telemetryEvents.traceLookups}), 0)`,
-        totalImpactAnalyses: sql<number>`coalesce(sum(${telemetryEvents.impactAnalyses}), 0)`,
-        totalResultsReturned: sql<number>`coalesce(sum(${telemetryEvents.totalResultsReturned}), 0)`,
-        totalTokensSaved: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensSaved}), 0)`,
-        totalTokensTotal: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensTotal}), 0)`,
-        eventCount: sql<number>`count(*)`,
-        distinctInstances: sql<number>`count(distinct coalesce(${telemetryEvents.instanceId}, ${telemetryEvents.apiKeyId}::text))`,
-      })
-      .from(telemetryEvents)
-      .where(eq(telemetryEvents.orgId, ownerId));
+    const [totals] = await runStep("telemetry_totals", () =>
+      db
+        .select({
+          totalToolCalls: sql<number>`coalesce(sum(${telemetryEvents.totalToolCalls}), 0)`,
+          totalSuccessfulToolCalls: sql<number>`coalesce(sum(${telemetryEvents.successfulToolCalls}), 0)`,
+          totalFailedToolCalls: sql<number>`coalesce(sum(${telemetryEvents.failedToolCalls}), 0)`,
+          totalDurationMs: sql<number>`coalesce(sum(${telemetryEvents.totalDurationMs}), 0)`,
+          totalSessionStarts: sql<number>`coalesce(sum(${telemetryEvents.sessionStarts}), 0)`,
+          totalSessionEnds: sql<number>`coalesce(sum(${telemetryEvents.sessionEnds}), 0)`,
+          totalSessionDurationMs: sql<number>`coalesce(sum(${telemetryEvents.sessionDurationMsTotal}), 0)`,
+          totalSearches: sql<number>`coalesce(sum(${telemetryEvents.searches}), 0)`,
+          totalRelatedLookups: sql<number>`coalesce(sum(${telemetryEvents.relatedLookups}), 0)`,
+          totalRuleLookups: sql<number>`coalesce(sum(${telemetryEvents.ruleLookups}), 0)`,
+          totalReloads: sql<number>`coalesce(sum(${telemetryEvents.reloads}), 0)`,
+          totalCallerLookups: sql<number>`coalesce(sum(${telemetryEvents.callerLookups}), 0)`,
+          totalTraceLookups: sql<number>`coalesce(sum(${telemetryEvents.traceLookups}), 0)`,
+          totalImpactAnalyses: sql<number>`coalesce(sum(${telemetryEvents.impactAnalyses}), 0)`,
+          totalResultsReturned: sql<number>`coalesce(sum(${telemetryEvents.totalResultsReturned}), 0)`,
+          totalTokensSaved: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensSaved}), 0)`,
+          totalTokensTotal: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensTotal}), 0)`,
+          eventCount: sql<number>`count(*)`,
+          distinctInstances: sql<number>`count(distinct coalesce(${telemetryEvents.instanceId}, ${telemetryEvents.apiKeyId}::text))`,
+        })
+        .from(telemetryEvents)
+        .where(eq(telemetryEvents.orgId, ownerId)),
+    );
 
     // Active policies count
-    const [policyCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(policies)
-      .where(eq(policies.orgId, ownerId));
+    const [policyCount] = await runStep("policy_count", () =>
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(policies)
+        .where(eq(policies.orgId, ownerId)),
+    );
 
     // Daily breakdown (last 30 days) from telemetry_events
-    const daily = await db
-      .select({
-        date: sql<string>`date(${telemetryEvents.periodStart} at time zone 'UTC')`,
-        toolCalls: sql<number>`coalesce(sum(${telemetryEvents.totalToolCalls}), 0)`,
-        successfulToolCalls: sql<number>`coalesce(sum(${telemetryEvents.successfulToolCalls}), 0)`,
-        failedToolCalls: sql<number>`coalesce(sum(${telemetryEvents.failedToolCalls}), 0)`,
-        totalDurationMs: sql<number>`coalesce(sum(${telemetryEvents.totalDurationMs}), 0)`,
-        searches: sql<number>`coalesce(sum(${telemetryEvents.searches}), 0)`,
-        relatedLookups: sql<number>`coalesce(sum(${telemetryEvents.relatedLookups}), 0)`,
-        ruleLookups: sql<number>`coalesce(sum(${telemetryEvents.ruleLookups}), 0)`,
-        reloads: sql<number>`coalesce(sum(${telemetryEvents.reloads}), 0)`,
-        callerLookups: sql<number>`coalesce(sum(${telemetryEvents.callerLookups}), 0)`,
-        traceLookups: sql<number>`coalesce(sum(${telemetryEvents.traceLookups}), 0)`,
-        impactAnalyses: sql<number>`coalesce(sum(${telemetryEvents.impactAnalyses}), 0)`,
-        resultsReturned: sql<number>`coalesce(sum(${telemetryEvents.totalResultsReturned}), 0)`,
-        tokensSaved: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensSaved}), 0)`,
-        tokensTotal: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensTotal}), 0)`,
-        pushCount: sql<number>`count(*)`,
-      })
-      .from(telemetryEvents)
-      .where(eq(telemetryEvents.orgId, ownerId))
-      .groupBy(sql`date(${telemetryEvents.periodStart} at time zone 'UTC')`)
-      .orderBy(desc(sql`date(${telemetryEvents.periodStart} at time zone 'UTC')`))
-      .limit(30);
+    const daily = await runStep("telemetry_daily", () =>
+      db
+        .select({
+          date: sql<string>`date(${telemetryEvents.periodStart} at time zone 'UTC')`,
+          toolCalls: sql<number>`coalesce(sum(${telemetryEvents.totalToolCalls}), 0)`,
+          successfulToolCalls: sql<number>`coalesce(sum(${telemetryEvents.successfulToolCalls}), 0)`,
+          failedToolCalls: sql<number>`coalesce(sum(${telemetryEvents.failedToolCalls}), 0)`,
+          totalDurationMs: sql<number>`coalesce(sum(${telemetryEvents.totalDurationMs}), 0)`,
+          searches: sql<number>`coalesce(sum(${telemetryEvents.searches}), 0)`,
+          relatedLookups: sql<number>`coalesce(sum(${telemetryEvents.relatedLookups}), 0)`,
+          ruleLookups: sql<number>`coalesce(sum(${telemetryEvents.ruleLookups}), 0)`,
+          reloads: sql<number>`coalesce(sum(${telemetryEvents.reloads}), 0)`,
+          callerLookups: sql<number>`coalesce(sum(${telemetryEvents.callerLookups}), 0)`,
+          traceLookups: sql<number>`coalesce(sum(${telemetryEvents.traceLookups}), 0)`,
+          impactAnalyses: sql<number>`coalesce(sum(${telemetryEvents.impactAnalyses}), 0)`,
+          resultsReturned: sql<number>`coalesce(sum(${telemetryEvents.totalResultsReturned}), 0)`,
+          tokensSaved: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensSaved}), 0)`,
+          tokensTotal: sql<number>`coalesce(sum(${telemetryEvents.estimatedTokensTotal}), 0)`,
+          pushCount: sql<number>`count(*)`,
+        })
+        .from(telemetryEvents)
+        .where(eq(telemetryEvents.orgId, ownerId))
+        .groupBy(sql`date(${telemetryEvents.periodStart} at time zone 'UTC')`)
+        .orderBy(desc(sql`date(${telemetryEvents.periodStart} at time zone 'UTC')`))
+        .limit(30),
+    );
 
     // Distinct client versions with last-seen timestamp
-    const versions = await db
-      .select({
-        version: telemetryEvents.clientVersion,
-        instances: sql<number>`count(distinct coalesce(${telemetryEvents.instanceId}, ${telemetryEvents.apiKeyId}::text))`,
-        lastSeen: sql<string>`max(${telemetryEvents.receivedAt})`,
-      })
-      .from(telemetryEvents)
-      .where(eq(telemetryEvents.orgId, ownerId))
-      .groupBy(telemetryEvents.clientVersion)
-      .orderBy(desc(sql`max(${telemetryEvents.receivedAt})`))
-      .limit(10);
+    const versions = await runStep("telemetry_versions", () =>
+      db
+        .select({
+          version: telemetryEvents.clientVersion,
+          instances: sql<number>`count(distinct coalesce(${telemetryEvents.instanceId}, ${telemetryEvents.apiKeyId}::text))`,
+          lastSeen: sql<string>`max(${telemetryEvents.receivedAt})`,
+        })
+        .from(telemetryEvents)
+        .where(eq(telemetryEvents.orgId, ownerId))
+        .groupBy(telemetryEvents.clientVersion)
+        .orderBy(desc(sql`max(${telemetryEvents.receivedAt})`))
+        .limit(10),
+    );
 
     const tokensSaved = Number(totals?.totalTokensSaved ?? 0);
     const resultsReturned = Number(totals?.totalResultsReturned ?? 0);
@@ -177,10 +222,28 @@ export async function GET(req: Request) {
       );
     }
 
+    if (error instanceof TelemetrySummaryQueryError) {
+      const detail = describeError(error.cause);
+      console.error(
+        `[telemetry.summary] Failed at ${error.step}: ${detail}`,
+        error.cause,
+      );
+      return NextResponse.json(
+        {
+          code: "telemetry_summary_unavailable",
+          error: error.message,
+          step: error.step,
+          detail,
+        },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json(
       {
         code: "telemetry_summary_unavailable",
         error: "Failed to load telemetry summary",
+        detail: describeError(error),
       },
       { status: 500 },
     );

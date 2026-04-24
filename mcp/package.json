@@ -20,8 +20,9 @@
   "overrides": {
     "cmake-js": "^8.0.0",
     "express-rate-limit": "^8.3.1",
-    "hono": "^4.12.12",
+    "hono": "^4.12.15",
     "@hono/node-server": "^1.19.13",
+    "protobufjs": "^8.0.1",
     "tar": "^7.5.11"
   },
   "devDependencies": {

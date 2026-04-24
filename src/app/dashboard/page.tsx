@@ -161,17 +161,44 @@ export default function DashboardPage() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [operations, setOperations] = useState<OperationsSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
+    const readJson = async <T,>(url: string): Promise<T> => {
+      const res = await fetch(url);
+      const data = (await res.json().catch(() => null)) as
+        | Record<string, unknown>
+        | null;
+      if (!res.ok) {
+        throw new Error(
+          typeof data?.error === "string" ? data.error : `Failed to load ${url}`,
+        );
+      }
+      return data as T;
+    };
+
     const [telRes, violRes, keysRes, polRes, operationsRes] =
       await Promise.allSettled([
-        fetch("/api/v1/telemetry/summary").then((r) => r.json()),
-        fetch("/api/v1/violations/summary").then((r) => r.json()),
-        fetch("/api/v1/api-keys").then((r) => r.json()),
-        fetch("/api/v1/policies").then((r) => r.json()),
-        fetch("/api/v1/operations/summary").then((r) => r.json()),
+        readJson<TelemetrySummary>("/api/v1/telemetry/summary"),
+        readJson<{ severity: ViolationSummary["severity"]; total: number; recent: ViolationSummary["recent"] }>(
+          "/api/v1/violations/summary",
+        ),
+        readJson<{ keys: ApiKey[] }>("/api/v1/api-keys"),
+        readJson<{ policies: Policy[] }>("/api/v1/policies"),
+        readJson<OperationsSummary>("/api/v1/operations/summary"),
       ]);
+
+    const firstError = [telRes, violRes, keysRes, polRes, operationsRes].find(
+      (result) => result.status === "rejected",
+    );
+    setError(
+      firstError?.status === "rejected"
+        ? firstError.reason instanceof Error
+          ? firstError.reason.message
+          : "Failed to load dashboard data"
+        : null,
+    );
 
     if (telRes.status === "fulfilled") setTelemetry(telRes.value);
     if (violRes.status === "fulfilled") setViolations(violRes.value);
@@ -215,6 +242,12 @@ export default function DashboardPage() {
           label="Page guide"
         />
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-4">
         <Card className="bg-white/[0.02] border-white/5">

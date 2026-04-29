@@ -160,6 +160,24 @@ export default function EditPolicyPage() {
           >
             {severity}
           </Badge>
+          {policy.controlAreas?.map((area) => (
+            <Badge
+              key={`${policy.id}:area:${area}`}
+              variant="outline"
+              className="text-xs text-sky-300 border-sky-400/20 bg-sky-400/10"
+            >
+              {area}
+            </Badge>
+          ))}
+          {policy.plannedRegulatoryPacks?.map((pack) => (
+            <Badge
+              key={`${policy.id}:pack:${pack}`}
+              variant="outline"
+              className="text-xs text-amber-300 border-amber-400/20 bg-amber-400/10"
+            >
+              Planned: {pack}
+            </Badge>
+          ))}
         </div>
       </div>
 

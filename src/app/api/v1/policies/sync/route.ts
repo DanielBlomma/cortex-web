@@ -9,6 +9,7 @@ import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
 import { upsertAuditDaily } from "@/lib/operations/rollups";
 import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { getPolicyComplianceMetadata } from "@/lib/policies/metadata";
 
 /**
  * GET /api/v1/policies/sync
@@ -56,6 +57,9 @@ export async function GET(req: Request) {
     .where(and(eq(policies.orgId, key.orgId), eq(policies.status, "active")))
     .orderBy(policies.priority);
 
+  // Wire shape stays `id`-keyed (no `ruleId` field) so the cortex-enterprise
+  // client contract and the version hash remain stable; compliance metadata
+  // is looked up by ruleId server-side and merged into the emitted record.
   const rules = rows.map((r) => ({
     id: r.ruleId,
     title: r.title,
@@ -68,6 +72,7 @@ export async function GET(req: Request) {
     enforce: r.enforce,
     type: r.type,
     config: r.config,
+    ...getPolicyComplianceMetadata(r.ruleId),
   }));
 
   // Compute version hash for cache invalidation + integrity

@@ -3,6 +3,10 @@ import {
   PREDEFINED_RULES,
   isPredefinedRule,
 } from "./predefined-rules";
+import {
+  COMPLIANCE_CONTROL_AREAS,
+  PLANNED_EU_REGULATORY_PACKS,
+} from "@/lib/compliance/frameworks";
 
 describe("PREDEFINED_RULES", () => {
   it("contains the prompt-injection-defense rule", () => {
@@ -30,6 +34,30 @@ describe("PREDEFINED_RULES", () => {
     for (const rule of PREDEFINED_RULES) {
       expect(rule.id).toMatch(/^[a-z0-9][a-z0-9-]*$/);
     }
+  });
+
+  it("all rules declare at least one control area", () => {
+    for (const rule of PREDEFINED_RULES) {
+      expect(rule.controlAreas.length).toBeGreaterThan(0);
+      for (const area of rule.controlAreas) {
+        expect(COMPLIANCE_CONTROL_AREAS).toContain(area);
+      }
+    }
+  });
+
+  it("planned regulatory packs stay within the approved EU pack list", () => {
+    for (const rule of PREDEFINED_RULES) {
+      for (const pack of rule.plannedRegulatoryPacks) {
+        expect(PLANNED_EU_REGULATORY_PACKS).toContain(pack);
+      }
+    }
+  });
+
+  it("marks no-env-in-prompts as supporting GDPR and EU AI Act planning", () => {
+    const rule = PREDEFINED_RULES.find((entry) => entry.id === "no-env-in-prompts");
+    expect(rule).toBeDefined();
+    expect(rule!.plannedRegulatoryPacks).toContain("GDPR");
+    expect(rule!.plannedRegulatoryPacks).toContain("EU AI Act");
   });
 });
 

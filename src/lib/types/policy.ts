@@ -1,3 +1,8 @@
+import type {
+  ComplianceControlArea,
+  PlannedEuRegulatoryPack,
+} from "@/lib/compliance/frameworks";
+
 export type Policy = {
   id: string;
   title: string;
@@ -18,4 +23,6 @@ export type Policy = {
   violationCount?: number;
   lastTriggeredAt?: string | null;
   recentlyTriggered?: boolean;
+  controlAreas?: ComplianceControlArea[];
+  plannedRegulatoryPacks?: PlannedEuRegulatoryPack[];
 };

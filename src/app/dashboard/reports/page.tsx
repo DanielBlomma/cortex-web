@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   Gauge,
   GitBranch,
+  Hourglass,
 } from "lucide-react";
 import { dashboardHelp } from "@/lib/dashboard/help-content";
 import { formatDate, formatDateTime } from "@/lib/dates";
@@ -175,6 +176,22 @@ type ComplianceReport = {
       customerResponsibilities: string[];
     }>;
   };
+  regulatoryPackPreview: Array<{
+    pack: string;
+    evidenceLevel: "preview";
+    policyCount: number;
+    enforcedPolicyCount: number;
+    recentViolationCount: number;
+    controlAreas: string[];
+    policies: Array<{
+      id: string;
+      ruleId: string;
+      title: string;
+      enforce: boolean;
+      status: string;
+      severity: string;
+    }>;
+  }>;
   residualResponsibilities: string[];
 };
 
@@ -255,6 +272,13 @@ export default function ReportsPage() {
 
   const exportCsv = () => {
     if (!report) return;
+    // RFC 4180 cell quoting — wrap in double-quotes and double-up any embedded ones.
+    // Required even for taxonomy strings, since future control-area or framework
+    // names may legitimately contain commas, quotes, or newlines.
+    const csvCell = (value: unknown): string => {
+      const s = value === null || value === undefined ? "" : String(value);
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const lines = ["Section,Key,Value"];
     lines.push(`Period,From,${report.meta.periodFrom}`);
     lines.push(`Period,To,${report.meta.periodTo}`);
@@ -307,21 +331,78 @@ export default function ReportsPage() {
     lines.push("Control ID,Title,Status,Capability,Rationale,Mappings,Evidence Signals");
     for (const control of report.controlMapping.controls) {
       lines.push(
-        `${control.id},"${control.title}",${control.status},"${control.capability}","${control.rationale}","${control.mappings.map((mapping) => `${mapping.framework}: ${mapping.area}`).join(" | ")}","${control.evidenceSignals.join(" | ")}"`
+        [
+          csvCell(control.id),
+          csvCell(control.title),
+          csvCell(control.status),
+          csvCell(control.capability),
+          csvCell(control.rationale),
+          csvCell(
+            control.mappings
+              .map((mapping) => `${mapping.framework}: ${mapping.area}`)
+              .join(" | ")
+          ),
+          csvCell(control.evidenceSignals.join(" | ")),
+        ].join(",")
       );
     }
 
     lines.push("");
     lines.push("Residual Responsibility");
     for (const responsibility of report.residualResponsibilities) {
-      lines.push(`"${responsibility}"`);
+      lines.push(csvCell(responsibility));
+    }
+
+    lines.push("");
+    lines.push(
+      "Planned EU Regulatory Packs (preview only — not a supported framework claim)"
+    );
+    lines.push(
+      "Pack,Evidence Level,Policy Count,Enforced Count,Recent Violations,Control Areas"
+    );
+    for (const entry of report.regulatoryPackPreview) {
+      lines.push(
+        [
+          csvCell(entry.pack),
+          csvCell(entry.evidenceLevel),
+          csvCell(entry.policyCount),
+          csvCell(entry.enforcedPolicyCount),
+          csvCell(entry.recentViolationCount),
+          csvCell(entry.controlAreas.join(" | ")),
+        ].join(",")
+      );
+    }
+    lines.push("");
+    lines.push("Pack,Policy Title,Rule ID,Status,Severity,Mode");
+    for (const entry of report.regulatoryPackPreview) {
+      for (const policy of entry.policies) {
+        lines.push(
+          [
+            csvCell(entry.pack),
+            csvCell(policy.title),
+            csvCell(policy.ruleId),
+            csvCell(policy.status),
+            csvCell(policy.severity),
+            csvCell(policy.enforce ? "enforced" : "advisory"),
+          ].join(",")
+        );
+      }
     }
 
     lines.push("");
     lines.push("Policy Title,Rule ID,Kind,Status,Severity,Mode,Priority,Scope");
     for (const p of report.policyGovernance.policies) {
       lines.push(
-        `"${p.title}",${p.ruleId},${p.kind},${p.status},${p.severity},${p.enforce ? "blocking" : "advisory"},${p.priority},${p.scope}`
+        [
+          csvCell(p.title),
+          csvCell(p.ruleId),
+          csvCell(p.kind),
+          csvCell(p.status),
+          csvCell(p.severity),
+          csvCell(p.enforce ? "blocking" : "advisory"),
+          csvCell(p.priority),
+          csvCell(p.scope),
+        ].join(",")
       );
     }
 
@@ -329,7 +410,14 @@ export default function ReportsPage() {
     lines.push("Rule Title,Rule ID,Policy Severity,Violations,Errors,Warnings");
     for (const r of report.violations.byRule) {
       lines.push(
-        `"${r.ruleTitle}",${r.ruleId},${r.policySeverity ?? ""},${r.count},${r.errors},${r.warnings}`
+        [
+          csvCell(r.ruleTitle),
+          csvCell(r.ruleId),
+          csvCell(r.policySeverity ?? ""),
+          csvCell(r.count),
+          csvCell(r.errors),
+          csvCell(r.warnings),
+        ].join(",")
       );
     }
 
@@ -337,7 +425,19 @@ export default function ReportsPage() {
     lines.push("Occurred,Source,Event Type,Evidence,Action,Resource,Description,Repo,Session,IP,User");
     for (const e of report.auditTrail.events) {
       lines.push(
-        `${e.occurredAt ?? e.createdAt},${e.source ?? ""},${e.eventType ?? ""},${e.evidenceLevel ?? ""},${e.action},${e.resourceType},"${e.description}",${e.repo ?? ""},${e.sessionId ?? ""},${e.ipAddress ?? ""},${e.userId ?? ""}`
+        [
+          csvCell(e.occurredAt ?? e.createdAt),
+          csvCell(e.source ?? ""),
+          csvCell(e.eventType ?? ""),
+          csvCell(e.evidenceLevel ?? ""),
+          csvCell(e.action),
+          csvCell(e.resourceType),
+          csvCell(e.description),
+          csvCell(e.repo ?? ""),
+          csvCell(e.sessionId ?? ""),
+          csvCell(e.ipAddress ?? ""),
+          csvCell(e.userId ?? ""),
+        ].join(",")
       );
     }
 
@@ -530,6 +630,118 @@ export default function ReportsPage() {
               </Table>
             </CardContent>
           </Card>
+
+          {/* Planned EU Regulatory Packs — preview only */}
+          {report.regulatoryPackPreview.some((p) => p.policyCount > 0) && (
+            <Card className="bg-white/[0.02] border-amber-400/20">
+              <CardHeader>
+                <CardTitle className="text-white text-base flex items-center gap-2">
+                  <Hourglass className="h-4 w-4 text-amber-400" />
+                  Planned EU Regulatory Packs
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] ml-auto text-amber-300 border-amber-400/20 bg-amber-400/10"
+                  >
+                    Preview
+                  </Badge>
+                </CardTitle>
+                <p className="text-xs text-zinc-500 mt-2">
+                  Evidence preview based on configured policies that target these
+                  regulatory packs. Not yet surfaced as supported compliance
+                  frameworks — use only as forward-looking signal.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {report.regulatoryPackPreview
+                  .filter((entry) => entry.policyCount > 0)
+                  .map((entry) => (
+                    <div
+                      key={entry.pack}
+                      className="rounded-lg border border-white/5 bg-black/20 p-4 space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-white">
+                            {entry.pack}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] text-amber-300 border-amber-400/20 bg-amber-400/10"
+                          >
+                            {entry.evidenceLevel}
+                          </Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-xs text-zinc-400">
+                          <span>
+                            <span className="text-white">{entry.policyCount}</span>{" "}
+                            policies
+                          </span>
+                          <span>
+                            <span className="text-emerald-300">
+                              {entry.enforcedPolicyCount}
+                            </span>{" "}
+                            enforced
+                          </span>
+                          <span>
+                            <span className="text-amber-300">
+                              {entry.recentViolationCount}
+                            </span>{" "}
+                            recent violations
+                          </span>
+                        </div>
+                      </div>
+                      {entry.controlAreas.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {entry.controlAreas.map((area) => (
+                            <Badge
+                              key={`${entry.pack}:${area}`}
+                              variant="outline"
+                              className="text-[10px] text-sky-300 border-sky-400/20 bg-sky-400/10"
+                            >
+                              {area}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        {entry.policies.map((policy) => (
+                          <div
+                            key={`${entry.pack}:${policy.id}`}
+                            className="flex flex-wrap items-center gap-2 text-xs"
+                          >
+                            <span className="text-zinc-200">{policy.title}</span>
+                            <code className="font-mono text-[10px] text-zinc-500">
+                              {policy.ruleId}
+                            </code>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${policySeverityBadgeClass[policy.severity as DashboardPolicy["severity"]] ?? "text-zinc-300 border-white/10 bg-black/20"}`}
+                            >
+                              {policy.severity}
+                            </Badge>
+                            {policy.enforce ? (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] text-emerald-300 border-emerald-400/20 bg-emerald-400/10"
+                              >
+                                enforced
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] text-zinc-400 border-white/10 bg-black/20"
+                              >
+                                advisory
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </CardContent>
+            </Card>
+          )}
 
           {/* A.5 / CC1 — Policy Governance */}
           <Card className="bg-white/[0.02] border-white/5">

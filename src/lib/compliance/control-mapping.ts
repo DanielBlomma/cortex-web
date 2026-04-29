@@ -1,3 +1,5 @@
+import type { BaselineComplianceFramework } from "./frameworks";
+
 export type ComplianceStatus = "covered" | "partial" | "manual";
 
 export type ComplianceEvidence = {
@@ -18,7 +20,7 @@ export type ComplianceEvidence = {
 };
 
 export type FrameworkMapping = {
-  framework: "ISO 27001" | "ISO 42001" | "SOC 2 Type II";
+  framework: BaselineComplianceFramework;
   area: string;
 };
 

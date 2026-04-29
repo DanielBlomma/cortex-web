@@ -8,13 +8,20 @@ print_help() {
 Usage: ./scripts/context.sh <command> [options]
 
 Commands:
+  bootstrap                        Install deps + full ingest + graph load
   ingest [--changed] [--verbose]   Index docs/code/design context into .context
+  embed [--changed]                Generate semantic embeddings for indexed entities
+  update                           Ingest changed files + rebuild graph
+  watch [start|stop|status|run|once] [--interval <sec>] [--debounce <sec>] [--mode <auto|event|poll>]
+                                    Continuous background update loop
   refresh [--changed] [--verbose]  Alias for ingest
-  note <title> [text]              Save tacit knowledge note into .context/notes
-  plan [show|reset]                Show or reset automatic plan/progress state
-  todo [text|list|done <id>|reopen <id>|remove <id>]
-                                   Manage TODOs in automatic plan state
+  graph-load [--no-reset]          Build RyuGraph DB from indexed context
+  dashboard [--interval <sec>]     Live TUI showing what Cortex adds to your repo
   status                           Show latest ingest summary
+  doctor                           Health check — verify config, index, MCP, and enterprise
+  memory-compile [--dry-run] [--verbose]
+                                    Compile raw memory notes into structured articles
+  memory-lint [--verbose] [--json]  Lint compiled memory articles for issues
   help                             Show this message
 EOF
 }
@@ -24,53 +31,42 @@ if [[ $# -gt 0 ]]; then
   shift
 fi
 
-TRACK_EVENT=""
-
 case "$COMMAND" in
+  bootstrap)
+    "$SCRIPT_DIR/bootstrap.sh" "$@"
+    ;;
   ingest)
     "$SCRIPT_DIR/ingest.sh" "$@"
-    TRACK_EVENT="ingest"
+    ;;
+  embed)
+    "$SCRIPT_DIR/embed.sh" "$@"
+    ;;
+  update)
+    "$SCRIPT_DIR/update-context.sh" "$@"
+    ;;
+  watch)
+    "$SCRIPT_DIR/watch.sh" "$@"
     ;;
   refresh)
     "$SCRIPT_DIR/refresh.sh" "$@"
-    TRACK_EVENT="refresh"
     ;;
-  note)
-    "$SCRIPT_DIR/capture-note.sh" "$@"
-    TRACK_EVENT="note"
+  graph-load)
+    "$SCRIPT_DIR/load-ryu.sh" "$@"
     ;;
-  bootstrap|embed|update|watch|graph-load)
-    echo "Command removed: $COMMAND"
-    echo "The local mcp/ tooling has been removed from cortex-web."
-    exit 1
-    ;;
-  plan)
-    PLAN_SUBCOMMAND="${1:-show}"
-    if [[ $# -gt 0 ]]; then
-      shift
-    fi
-    "$SCRIPT_DIR/plan-state.sh" "$PLAN_SUBCOMMAND" "$@"
-    ;;
-  todo)
-    if [[ $# -eq 0 ]]; then
-      "$SCRIPT_DIR/plan-state.sh" todo list
-    else
-      case "$1" in
-        list|done|reopen|remove)
-          TODO_SUBCOMMAND="$1"
-          shift
-          "$SCRIPT_DIR/plan-state.sh" todo "$TODO_SUBCOMMAND" "$@"
-          ;;
-        *)
-          "$SCRIPT_DIR/plan-state.sh" todo add "$*"
-          ;;
-      esac
-    fi
-    TRACK_EVENT="todo"
+  dashboard)
+    "$SCRIPT_DIR/dashboard.sh" "$@"
     ;;
   status)
     "$SCRIPT_DIR/status.sh"
-    TRACK_EVENT="status"
+    ;;
+  doctor)
+    "$SCRIPT_DIR/doctor.sh"
+    ;;
+  memory-compile)
+    "$SCRIPT_DIR/memory-compile.sh" "$@"
+    ;;
+  memory-lint)
+    "$SCRIPT_DIR/memory-lint.sh" "$@"
     ;;
   help|--help|-h)
     print_help
@@ -81,9 +77,3 @@ case "$COMMAND" in
     exit 1
     ;;
 esac
-
-if [[ -n "$TRACK_EVENT" ]]; then
-  if ! "$SCRIPT_DIR/plan-state.sh" event "$TRACK_EVENT" >/dev/null 2>&1; then
-    echo "[plan] warning: failed to update plan state"
-  fi
-fi

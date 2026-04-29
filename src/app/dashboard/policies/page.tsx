@@ -638,6 +638,32 @@ export default function PoliciesPage() {
                       <p className="text-sm text-zinc-400">
                         {policy?.description || rule.description}
                       </p>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          {rule.controlAreas.map((area) => (
+                            <Badge
+                              key={`${rule.id}:area:${area}`}
+                              variant="outline"
+                              className="text-[11px] text-sky-300 border-sky-400/20 bg-sky-400/10"
+                            >
+                              {area}
+                            </Badge>
+                          ))}
+                        </div>
+                        {rule.plannedRegulatoryPacks.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {rule.plannedRegulatoryPacks.map((pack) => (
+                              <Badge
+                                key={`${rule.id}:pack:${pack}`}
+                                variant="outline"
+                                className="text-[11px] text-amber-300 border-amber-400/20 bg-amber-400/10"
+                              >
+                                Planned: {pack}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         <Badge variant="secondary" className="text-xs">
                           {policy?.scope ?? "global"}

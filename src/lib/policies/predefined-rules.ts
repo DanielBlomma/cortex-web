@@ -1,3 +1,8 @@
+import type {
+  ComplianceControlArea,
+  PlannedEuRegulatoryPack,
+} from "@/lib/compliance/frameworks";
+
 export type PredefinedRule = {
   id: string;
   name: string;
@@ -5,6 +10,8 @@ export type PredefinedRule = {
   category: "security" | "quality" | "compliance";
   defaultPriority: number;
   defaultSeverity: "warning" | "error" | "block";
+  controlAreas: ComplianceControlArea[];
+  plannedRegulatoryPacks: PlannedEuRegulatoryPack[];
 };
 
 export const PREDEFINED_RULES: PredefinedRule[] = [
@@ -16,6 +23,11 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "security",
     defaultPriority: 90,
     defaultSeverity: "block",
+    controlAreas: [
+      "Secure Development And Secret Hygiene",
+      "Incident Handling And Reporting",
+    ],
+    plannedRegulatoryPacks: ["NIS2"],
   },
   {
     id: "require-code-review",
@@ -25,6 +37,8 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "quality",
     defaultPriority: 80,
     defaultSeverity: "block",
+    controlAreas: ["Governed Workflow And Human Review"],
+    plannedRegulatoryPacks: ["EU AI Act"],
   },
   {
     id: "max-file-size",
@@ -34,6 +48,8 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "quality",
     defaultPriority: 50,
     defaultSeverity: "warning",
+    controlAreas: ["Governed Workflow And Human Review"],
+    plannedRegulatoryPacks: [],
   },
   {
     id: "no-env-in-prompts",
@@ -43,6 +59,8 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "security",
     defaultPriority: 85,
     defaultSeverity: "block",
+    controlAreas: ["Data Minimization And Transfer Boundary"],
+    plannedRegulatoryPacks: ["GDPR", "EU AI Act"],
   },
   {
     id: "no-external-api-calls",
@@ -52,6 +70,11 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "compliance",
     defaultPriority: 70,
     defaultSeverity: "error",
+    controlAreas: [
+      "Data Minimization And Transfer Boundary",
+      "Incident Handling And Reporting",
+    ],
+    plannedRegulatoryPacks: ["GDPR", "NIS2"],
   },
   {
     id: "require-test-coverage",
@@ -61,6 +84,8 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "quality",
     defaultPriority: 60,
     defaultSeverity: "warning",
+    controlAreas: ["Governed Workflow And Human Review"],
+    plannedRegulatoryPacks: [],
   },
   {
     id: "no-license-violations",
@@ -70,6 +95,8 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "compliance",
     defaultPriority: 75,
     defaultSeverity: "error",
+    controlAreas: ["Policy Governance And Organizational Rules"],
+    plannedRegulatoryPacks: [],
   },
   {
     id: "safe-dependency-versions",
@@ -79,6 +106,11 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "security",
     defaultPriority: 65,
     defaultSeverity: "warning",
+    controlAreas: [
+      "Secure Development And Secret Hygiene",
+      "Incident Handling And Reporting",
+    ],
+    plannedRegulatoryPacks: ["NIS2"],
   },
   {
     id: "prompt-injection-defense",
@@ -88,6 +120,11 @@ export const PREDEFINED_RULES: PredefinedRule[] = [
     category: "security",
     defaultPriority: 95,
     defaultSeverity: "block",
+    controlAreas: [
+      "Operational Logging And Monitoring",
+      "Data Minimization And Transfer Boundary",
+    ],
+    plannedRegulatoryPacks: ["EU AI Act", "NIS2"],
   },
 ];
 

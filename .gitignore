@@ -40,20 +40,16 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+.claude/settings.local.json
+.npm-cache/
 # Cortex local storage
 .context/db/
 .context/embeddings/
 .context/cache/
-.context/plan/
 .context/hooks/
-.context/notes/
-.context/watch/
-.context/config.yaml
-.context/rules.yaml
-.context/ontology.cypher
-.claude/settings.local.json
-.npm-cache/
 mcp/.npm-cache/
 mcp/dist/
 mcp/node_modules/
 scripts/parsers/node_modules/
+scripts/parsers/dotnet/**/bin/
+scripts/parsers/dotnet/**/obj/

@@ -10,6 +10,7 @@ import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
 import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { isPredefinedRule } from "@/lib/policies/predefined-rules";
+import { hydratePolicyComplianceMetadata } from "@/lib/policies/metadata";
 import { harmonizePolicyConfigSeverity } from "@/lib/policies/config";
 
 function normalizedPolicyForCreate(input: ReturnType<typeof createPolicySchema.parse>) {
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
         .sort()
         .at(-1) ?? null;
 
-    return {
+    return hydratePolicyComplianceMetadata({
       ...policy,
       reviewFailureCount: Number(stats?.reviewFailureCount ?? 0),
       warningReviewCount: Number(stats?.warningReviewCount ?? 0),
@@ -71,7 +72,7 @@ export async function GET(req: Request) {
         Number(stats?.reviewFailureCount ?? 0) > 0 ||
         Number(stats?.warningReviewCount ?? 0) > 0 ||
         Number(stats?.violationCount ?? 0) > 0,
-    };
+    });
   });
 
   return NextResponse.json({ policies: hydrated });
@@ -138,7 +139,10 @@ export async function POST(req: Request) {
       req,
     });
 
-    return NextResponse.json({ policy }, { status: 201 });
+    return NextResponse.json(
+      { policy: hydratePolicyComplianceMetadata(policy) },
+      { status: 201 }
+    );
   } catch (err: unknown) {
     if (
       err instanceof Error &&

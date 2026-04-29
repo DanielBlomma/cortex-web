@@ -206,7 +206,14 @@ sealed class VbChunkCollector
     private void AddMethodChunk(List<ChunkOutput> chunks, MethodBlockSyntax node, string parentTypeName)
     {
         var statement = node.BlockStatement;
-        var name = $"{parentTypeName}.{statement.Identifier.Text}";
+        var identifierText = statement switch
+        {
+            MethodStatementSyntax methodStmt => methodStmt.Identifier.Text,
+            SubNewStatementSyntax => "New",
+            OperatorStatementSyntax opStmt => opStmt.OperatorToken.Text,
+            _ => statement.ToString().Split('(')[0].Trim()
+        };
+        var name = $"{parentTypeName}.{identifierText}";
         var kind = statement.Kind() == SyntaxKind.SubStatement ? "method" : "function";
         chunks.Add(BuildChunk(
             name,
@@ -296,6 +303,9 @@ sealed class VbChunkCollector
 
     private static string GetImportName(ImportsClauseSyntax clause)
     {
+        // Aliases must return the aliased namespace path (`Bar.Baz`), not the alias
+        // identifier or full clause text — downstream Cortex linkers index imports by
+        // namespace path so they can match `Foo.Type` references back to `Bar.Baz.Type`.
         return clause switch
         {
             SimpleImportsClauseSyntax simpleClause => simpleClause.Name.ToString(),
@@ -309,6 +319,10 @@ sealed class VbChunkCollector
     {
         SyntaxTokenList modifiers = node switch
         {
+            TypeBlockSyntax typeBlock => typeBlock.BlockStatement.Modifiers,
+            MethodBlockSyntax methodBlock => methodBlock.BlockStatement.Modifiers,
+            PropertyBlockSyntax propertyBlock => propertyBlock.PropertyStatement.Modifiers,
+            EventBlockSyntax eventBlock => eventBlock.EventStatement.Modifiers,
             TypeStatementSyntax typeStatement => typeStatement.Modifiers,
             MethodStatementSyntax methodStatement => methodStatement.Modifiers,
             PropertyStatementSyntax propertyStatement => propertyStatement.Modifiers,
@@ -332,6 +346,7 @@ sealed class VbChunkCollector
             .Select(invocation => invocation.Expression)
             .Select(GetInvocationName)
             .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
     }

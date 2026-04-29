@@ -10,6 +10,7 @@ import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
 import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { resolvePolicyUpdateConfig } from "@/lib/policies/config";
+import { hydratePolicyComplianceMetadata } from "@/lib/policies/metadata";
 
 export async function GET(
   _req: Request,
@@ -34,7 +35,7 @@ export async function GET(
   if (!policy)
     return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json({ policy });
+  return NextResponse.json({ policy: hydratePolicyComplianceMetadata(policy) });
 }
 
 export async function PUT(
@@ -124,7 +125,7 @@ export async function PUT(
     req,
   });
 
-  return NextResponse.json({ policy });
+  return NextResponse.json({ policy: hydratePolicyComplianceMetadata(policy) });
 }
 
 export async function DELETE(

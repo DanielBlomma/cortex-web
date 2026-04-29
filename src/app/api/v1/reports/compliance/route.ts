@@ -19,8 +19,9 @@ import { AUDIT_RETENTION_POLICY } from "@/lib/audit/retention";
 import { TELEMETRY_RETENTION_POLICY } from "@/lib/telemetry/retention";
 import {
   buildControlMatrix,
-  RESIDUAL_CUSTOMER_RESPONSIBILITIES,
 } from "@/lib/compliance/control-mapping";
+import { buildComplianceReportContract } from "@/lib/compliance/report-contract";
+import { buildRegulatoryPackPreview } from "@/lib/compliance/regulatory-pack-preview";
 import { summarizeAuditEvidence } from "@/lib/compliance/audit-evidence";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { createRequestTiming } from "@/lib/perf/request-timing";
@@ -345,14 +346,30 @@ export async function GET(req: Request) {
     boundaryDocumented: true,
   });
 
+  const regulatoryPackPreview = buildRegulatoryPackPreview({
+    activePolicies: activePolicies.map((p) => ({
+      id: p.id,
+      title: p.title,
+      ruleId: p.ruleId,
+      status: p.status,
+      severity: p.severity,
+      enforce: p.enforce,
+    })),
+    violationsByRule: violationsByRule.map((v) => ({
+      ruleId: v.ruleId,
+      count: Number(v.count),
+    })),
+  });
+
   const report = {
-    meta: {
+    ...buildComplianceReportContract({
       generatedAt: new Date().toISOString(),
       periodFrom: from,
       periodTo: to,
       orgId: ownerId,
-      framework: ["ISO 27001", "ISO 42001", "SOC 2 Type II"],
-    },
+      controlMapping: controlMatrix,
+      regulatoryPackPreview,
+    }),
 
     // ISO 27001 A.5 / SOC 2 CC1 — Information Security Policies
     policyGovernance: {
@@ -434,9 +451,6 @@ export async function GET(req: Request) {
       activeInstances: Number(telemetryInstances?.distinctInstances ?? 0),
     },
 
-    controlMapping: controlMatrix,
-
-    residualResponsibilities: [...RESIDUAL_CUSTOMER_RESPONSIBILITIES],
   };
 
   return timing.attach(NextResponse.json(report));

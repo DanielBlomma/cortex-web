@@ -24,7 +24,7 @@ export function Footer() {
             Dashboard
           </Link>
           <a
-            href="mailto:sales@cortex.dev"
+            href="mailto:daniel.blomma@gmail.com"
             className="hover:text-white transition-colors"
           >
             Contact

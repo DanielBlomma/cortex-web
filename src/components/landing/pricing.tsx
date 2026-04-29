@@ -52,13 +52,13 @@ const plans = [
   },
   {
     name: "Air-Gapped",
-    price: "$25,000",
+    price: "From $50,000",
     period: "per year",
-    monthly: "$2,200/mo billed monthly",
+    monthly: "Scales with developers and projects — contact sales",
     description:
       "Offline governance for restricted environments. Local policies, local evidence, zero network traffic.",
     cta: "Contact Sales",
-    ctaHref: "mailto:sales@cortex.dev",
+    ctaHref: "mailto:daniel.blomma@gmail.com?subject=Air-Gapped%20Inquiry",
     ctaExternal: true,
     highlighted: false,
     features: [

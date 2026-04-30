@@ -121,4 +121,23 @@ describe("telemetryPushSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  // v2.0.0 compatibility: cortex-mcp's TelemetryCollector emits these
+  // exact field formats. Schema must accept them or every cortex client
+  // silently fails (this was the original v2.0.0 motivator).
+  it("v2: accepts randomUUID() session_id (enterprise/index.ts)", () => {
+    const result = telemetryPushSchema.safeParse({
+      ...validPayload,
+      session_id: "12345678-9abc-def0-1234-56789abcdef0",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("v2: accepts 16-char hex instance_id (generateInstanceId() in collector.ts)", () => {
+    const result = telemetryPushSchema.safeParse({
+      ...validPayload,
+      instance_id: "a1b2c3d4e5f60718",
+    });
+    expect(result.success).toBe(true);
+  });
 });

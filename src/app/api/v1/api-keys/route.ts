@@ -11,7 +11,7 @@ import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
 import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { applyRateLimit } from "@/lib/rate-limit";
 
-const AVAILABLE_SCOPES = ["telemetry", "policy", "audit-log", "govern"] as const;
+const AVAILABLE_SCOPES = ["telemetry", "policy", "govern"] as const;
 const ENVIRONMENT_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
 
 const createKeySchema = z.object({

@@ -7,10 +7,15 @@ const isPublicRoute = createRouteMatcher([
   "/api/v1/audit/push",
   "/api/v1/reviews/push",
   "/api/v1/telemetry/push",
-  "/api/v1/policy/sync",
   "/api/v1/policies/sync",
   "/api/v1/violations/push",
   "/api/v1/workflow/push",
+  "/api/v1/license/verify",
+  "/api/v1/govern/config",
+  "/api/v1/govern/applied",
+  "/api/v1/govern/heartbeat",
+  "/api/v1/govern/ungoverned",
+  "/api/v1/govern/tamper",
   "/api/webhooks/(.*)",
 ]);
 

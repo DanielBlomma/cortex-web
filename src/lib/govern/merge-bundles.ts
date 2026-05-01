@@ -17,6 +17,10 @@ function uniquePush<T>(arr: T[], value: T, eq: (a: T, b: T) => boolean): void {
   if (!arr.some((existing) => eq(existing, value))) arr.push(value);
 }
 
+function stableJson(value: unknown): string {
+  return JSON.stringify(value);
+}
+
 function mergeManagedSettingsForCli(
   bundles: BundleInput[],
   cli: GovernCli,
@@ -49,7 +53,11 @@ function mergeManagedSettingsForCli(
       for (const [event, entries] of Object.entries(cliSettings.hooks)) {
         const existing = (merged.hooks as Record<string, unknown[]>)[event] ?? [];
         const incoming = Array.isArray(entries) ? entries : [entries];
-        (merged.hooks as Record<string, unknown[]>)[event] = [...existing, ...incoming];
+        const deduped = [...existing];
+        for (const entry of incoming) {
+          uniquePush(deduped, entry, (a, b) => stableJson(a) === stableJson(b));
+        }
+        (merged.hooks as Record<string, unknown[]>)[event] = deduped;
       }
     }
     if (cliSettings.sandbox) {

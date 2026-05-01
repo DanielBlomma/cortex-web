@@ -71,6 +71,37 @@ describe("mergeBundles", () => {
     expect(codexMerge.config.managed_settings.permissions?.deny).toEqual(["Edit(~/.codex/**)"]);
   });
 
+  it("deduplicates identical hook entries across multiple frameworks", () => {
+    const sharedHook = {
+      hooks: [{ type: "command", command: "cortex hook session-start" }],
+    };
+    const a = bundle("iso27001", {
+      managed_settings: {
+        claude: {
+          hooks: {
+            SessionStart: [sharedHook],
+          },
+        },
+      },
+      deny_rules: [],
+      tamper_config: { heartbeat_interval_seconds: 60, missing_threshold_seconds: 300 },
+    });
+    const b = bundle("soc2", {
+      managed_settings: {
+        claude: {
+          hooks: {
+            SessionStart: [sharedHook],
+          },
+        },
+      },
+      deny_rules: [],
+      tamper_config: { heartbeat_interval_seconds: 60, missing_threshold_seconds: 300 },
+    });
+
+    const merged = mergeBundles([a, b], "claude");
+    expect(merged.config.managed_settings.hooks?.SessionStart).toEqual([sharedHook]);
+  });
+
   it("respects per-rule cli scoping in deny_rules", () => {
     const a = bundle("iso27001", {
       managed_settings: {},

@@ -659,7 +659,7 @@ export default function ApiKeysPage() {
           }
         }}
       >
-        <DialogContent className="bg-[hsl(var(--cortex-surface))] border-[hsl(var(--cortex-border))]">
+        <DialogContent className="bg-[hsl(var(--cortex-surface))] border-[hsl(var(--cortex-border))] sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-[hsl(var(--cortex-fg))]">
               {createdKey ? "Key Created" : "Create API Key"}
@@ -673,13 +673,13 @@ export default function ApiKeysPage() {
           )}
 
           {createdKey ? (
-            <div className="space-y-4">
+            <div className="space-y-4 min-w-0 overflow-y-auto">
               <p className="text-sm text-[hsl(var(--cortex-fg-muted))]">
                 Your new API key is ready. You can copy it anytime from the
                 key list.
               </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 bg-[hsl(var(--cortex-surface-2))] border border-[hsl(var(--cortex-border))] rounded-lg px-3 py-2 text-sm text-[hsl(var(--cortex-running))] font-mono break-all">
+              <div className="flex items-center gap-2 min-w-0">
+                <code className="flex-1 min-w-0 bg-[hsl(var(--cortex-surface-2))] border border-[hsl(var(--cortex-border))] rounded-lg px-3 py-2 text-sm text-[hsl(var(--cortex-running))] font-mono break-all">
                   {createdKey}
                 </code>
                 <Button
@@ -701,11 +701,11 @@ export default function ApiKeysPage() {
                 </code>
                 :
               </p>
-              <div className="relative group">
+              <div className="relative group min-w-0">
                 <pre
                   className={cn(
                     CODE_BLOCK,
-                    "pr-12 text-xs whitespace-pre overflow-x-auto"
+                    "pr-12 text-xs whitespace-pre overflow-x-auto max-w-full"
                   )}
                 >
                   {buildEnterpriseConfigYaml(createdKey)}

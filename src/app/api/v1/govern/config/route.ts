@@ -5,6 +5,7 @@ import { and, eq, inArray, desc } from "drizzle-orm";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
+import { ensureDefaultFrameworkBundles } from "@/lib/govern/default-bundles";
 import { mergeBundles } from "@/lib/govern/merge-bundles";
 import {
   isFrameworkId,
@@ -24,6 +25,7 @@ import {
  */
 export async function GET(req: Request) {
   await ensureRuntimeSchema();
+  await ensureDefaultFrameworkBundles();
   const rl = applyRateLimit(req, 30);
   if (rl) return rl;
 

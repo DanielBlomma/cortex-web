@@ -24,7 +24,7 @@ import { formatDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { Plus, Copy, Trash2, Check, Download } from "lucide-react";
 
-const AVAILABLE_SCOPES = ["telemetry", "policy", "audit-log"] as const;
+const AVAILABLE_SCOPES = ["telemetry", "policy", "audit-log", "govern"] as const;
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 function buildEnterpriseConfigYaml(apiKey: string) {

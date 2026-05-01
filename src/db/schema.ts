@@ -576,3 +576,145 @@ export const subscriptions = pgTable(
   },
   (t) => [index("idx_subscriptions_org").on(t.orgId)]
 );
+
+// ── Govern (Phase 2 of PLAN.govern-mode.md) ─────────────────────────
+
+export const frameworkBundle = pgTable(
+  "framework_bundle",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    frameworkId: text("framework_id").notNull(),
+    version: text("version").notNull(),
+    managedSettings: jsonb("managed_settings").notNull(),
+    denyRules: jsonb("deny_rules").notNull(),
+    tamperConfig: jsonb("tamper_config").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("idx_framework_bundle_id_version").on(t.frameworkId, t.version),
+    index("idx_framework_bundle_id").on(t.frameworkId),
+  ]
+);
+
+export const governConfigVersion = pgTable(
+  "govern_config_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    cli: text("cli").notNull(),
+    version: text("version").notNull(),
+    frameworks: jsonb("frameworks").notNull(),
+    mergedConfig: jsonb("merged_config").notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("idx_govern_config_version").on(t.orgId, t.cli, t.version),
+    index("idx_govern_config_org_time").on(t.orgId, t.generatedAt),
+  ]
+);
+
+export const hostEnrollment = pgTable(
+  "host_enrollment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    hostId: text("host_id").notNull(),
+    os: text("os").notNull(),
+    osVersion: text("os_version"),
+    aiClisDetected: jsonb("ai_clis_detected").notNull().default([]),
+    governMode: text("govern_mode").notNull().default("off"),
+    activeFrameworks: jsonb("active_frameworks").notNull().default([]),
+    configVersion: text("config_version"),
+    firstSeen: timestamp("first_seen", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastSeen: timestamp("last_seen", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("idx_host_enrollment_org_host").on(t.orgId, t.hostId),
+    index("idx_host_enrollment_org_lastseen").on(t.orgId, t.lastSeen),
+  ]
+);
+
+export const managedSettingsAudit = pgTable(
+  "managed_settings_audit",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    hostId: text("host_id").notNull(),
+    instanceId: text("instance_id"),
+    cli: text("cli").notNull(),
+    version: text("version").notNull(),
+    appliedAt: timestamp("applied_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    source: text("source").notNull(),
+    success: boolean("success").notNull(),
+    errorMessage: text("error_message"),
+  },
+  (t) => [
+    index("idx_managed_settings_audit_org_time").on(t.orgId, t.appliedAt),
+    index("idx_managed_settings_audit_host").on(t.hostId),
+  ]
+);
+
+export const hookTamperEvent = pgTable(
+  "hook_tamper_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    hostId: text("host_id").notNull(),
+    cli: text("cli").notNull(),
+    hookName: text("hook_name").notNull(),
+    lastSeen: timestamp("last_seen", { withTimezone: true }),
+    detectedAt: timestamp("detected_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolutionReason: text("resolution_reason"),
+  },
+  (t) => [
+    index("idx_hook_tamper_org_time").on(t.orgId, t.detectedAt),
+    index("idx_hook_tamper_host").on(t.hostId),
+    index("idx_hook_tamper_unresolved").on(t.orgId, t.resolvedAt),
+  ]
+);
+
+export const ungovernedSessionEvent = pgTable(
+  "ungoverned_session_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: text("org_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    hostId: text("host_id").notNull(),
+    cli: text("cli").notNull(),
+    binaryPath: text("binary_path").notNull(),
+    args: jsonb("args"),
+    sysUser: text("sys_user"),
+    parentPid: integer("parent_pid"),
+    pid: integer("pid"),
+    detectedAt: timestamp("detected_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    actionTaken: text("action_taken").notNull().default("logged"),
+  },
+  (t) => [
+    index("idx_ungoverned_org_time").on(t.orgId, t.detectedAt),
+    index("idx_ungoverned_host").on(t.hostId),
+  ]
+);

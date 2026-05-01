@@ -11,6 +11,8 @@ import {
   RefreshCw,
   CheckCircle2,
   XCircle,
+  Download,
+  FileJson,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -203,13 +205,30 @@ export default function GovernOverviewPage() {
             {timeAgo(data.generated_at)}.
           </p>
         </div>
-        <button
-          onClick={() => void load()}
-          className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-accent"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <a
+            href="/api/v1/govern/snapshot?format=csv"
+            className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            <Download className="h-4 w-4" />
+            CSV
+          </a>
+          <a
+            href="/api/v1/govern/snapshot?format=json"
+            className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-accent"
+            title="Signed JSON snapshot for audit. Requires CORTEX_SNAPSHOT_SIGNING_KEY."
+          >
+            <FileJson className="h-4 w-4" />
+            Signed JSON
+          </a>
+          <button
+            onClick={() => void load()}
+            className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </header>
 
       <section className="grid gap-4 md:grid-cols-4">

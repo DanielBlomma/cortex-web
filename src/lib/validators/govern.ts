@@ -41,7 +41,7 @@ export const ungovernedEventSchema = z.object({
   host_id: z.string().min(1).max(256),
   cli: z.string().min(1).max(64),
   binary_path: z.string().min(1).max(1024),
-  args: z.unknown().optional(),
+  args: z.string().max(8192).optional(),
   sys_user: z.string().max(128).optional(),
   parent_pid: z.number().int().min(0).optional(),
   pid: z.number().int().min(0).optional(),

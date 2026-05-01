@@ -97,6 +97,36 @@ describe("ungovernedReportSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects args longer than 8192 characters", () => {
+    const result = ungovernedReportSchema.safeParse({
+      events: [
+        {
+          detected_at: new Date().toISOString(),
+          host_id: "h",
+          cli: "claude",
+          binary_path: "/usr/local/bin/claude",
+          args: "x".repeat(8193),
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts args at the 8192 limit", () => {
+    const result = ungovernedReportSchema.safeParse({
+      events: [
+        {
+          detected_at: new Date().toISOString(),
+          host_id: "h",
+          cli: "claude",
+          binary_path: "/usr/local/bin/claude",
+          args: "x".repeat(8192),
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("defaults action_taken to 'logged' when omitted", () => {
     const result = ungovernedReportSchema.safeParse({
       events: [

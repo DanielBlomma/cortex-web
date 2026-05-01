@@ -14,7 +14,7 @@ import { hookTamperReportSchema } from "@/lib/validators/govern";
  */
 export async function POST(req: Request) {
   await ensureRuntimeSchema();
-  const rl = applyRateLimit(req, 60);
+  const rl = applyRateLimit(req, 12);
   if (rl) return rl;
 
   const authHeader = req.headers.get("authorization");

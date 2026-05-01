@@ -88,6 +88,8 @@ See [`cortex-enterprise/docs/COMPLIANCE_CONTROL_MAPPING.md`](../cortex-enterpris
 
 Deployed via GitHub Actions to Vercel. Do not publish locally — push to `main` and let CI handle the rollout. Database migrations run during `next build` (`scripts/migrate.mjs`).
 
+For one-off telemetry cleanup on the next deploy, set `CORTEX_RESET_TELEMETRY_KEY` to a unique value in the deploy environment. The build migration will truncate `telemetry_events`, `telemetry_daily`, and rebuild zeroed telemetry snapshots exactly once for that key; repeated deploys with the same key are skipped.
+
 ## Related repos
 
 - [`cortex`](https://github.com/DanielBlomma/cortex) — public MIT MCP server (npm: `@danielblomma/cortex-mcp`)

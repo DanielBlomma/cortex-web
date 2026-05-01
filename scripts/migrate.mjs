@@ -1,6 +1,7 @@
 import postgres from "postgres";
 
 const sql = postgres(process.env.DATABASE_URL);
+const telemetryResetKey = process.env.CORTEX_RESET_TELEMETRY_KEY?.trim() ?? "";
 
 // Idempotent data migrations. Safe to run multiple times — all statements
 // are no-ops after first successful run.
@@ -156,11 +157,20 @@ await sql`
     "last_received_at" timestamptz NOT NULL DEFAULT now()
   )
 `;
+await sql`
+  CREATE TABLE IF NOT EXISTS "deployment_actions" (
+    "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    "action_key" text NOT NULL,
+    "action_type" text NOT NULL,
+    "created_at" timestamptz NOT NULL DEFAULT now()
+  )
+`;
 await sql`CREATE INDEX IF NOT EXISTS "idx_audit_log_org_time" ON "audit_log" ("org_id", "occurred_at")`;
 await sql`CREATE INDEX IF NOT EXISTS "idx_audit_log_resource" ON "audit_log" ("org_id", "resource_type", "resource_id")`;
 await sql`CREATE INDEX IF NOT EXISTS "idx_audit_log_session" ON "audit_log" ("org_id", "session_id")`;
 await sql`CREATE UNIQUE INDEX IF NOT EXISTS "idx_audit_daily_org_date" ON "audit_daily" ("org_id", "date")`;
 await sql`CREATE INDEX IF NOT EXISTS "idx_audit_daily_org" ON "audit_daily" ("org_id")`;
+await sql`CREATE UNIQUE INDEX IF NOT EXISTS "idx_deployment_actions_key" ON "deployment_actions" ("action_key")`;
 await sql`CREATE UNIQUE INDEX IF NOT EXISTS "idx_operations_snapshots_org" ON "operations_snapshots" ("org_id")`;
 await sql`CREATE INDEX IF NOT EXISTS "idx_operations_snapshots_updated" ON "operations_snapshots" ("updated_at")`;
 await sql`CREATE UNIQUE INDEX IF NOT EXISTS "idx_violations_daily_org_date" ON "violations_daily" ("org_id", "date")`;
@@ -237,6 +247,27 @@ await sql`
     "total_tokens_total" = excluded."total_tokens_total",
     "push_count" = excluded."push_count"
 `;
+if (telemetryResetKey) {
+  const actionKey = `telemetry-reset:${telemetryResetKey}`;
+  const result = await sql.begin(async (tx) => {
+    const claimed = await tx`
+      INSERT INTO "deployment_actions" ("action_key", "action_type")
+      VALUES (${actionKey}, 'telemetry_reset')
+      ON CONFLICT ("action_key") DO NOTHING
+      RETURNING "action_key"
+    `;
+    if (claimed.length === 0) {
+      return { applied: false };
+    }
+    await tx`TRUNCATE TABLE "operations_snapshots", "telemetry_daily", "telemetry_events" RESTART IDENTITY`;
+    return { applied: true };
+  });
+  if (result.applied) {
+    console.log(`[migrate] applied one-time telemetry reset for key '${telemetryResetKey}'`);
+  } else {
+    console.log(`[migrate] telemetry reset already applied for key '${telemetryResetKey}', skipping`);
+  }
+}
 await sql`
   INSERT INTO "operations_snapshots" (
     "org_id",

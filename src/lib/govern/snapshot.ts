@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { computeHmac } from "@/lib/hmac";
 
 /**
@@ -52,7 +53,22 @@ export type SignedSnapshot = {
   signature: string;
   signature_algorithm: "HMAC-SHA256";
   signed_at: string;
+  /**
+   * Identifier of the key used to compute `signature`. Lets a verifier pick
+   * the right secret when multiple are in rotation. Either the explicit
+   * value of `CORTEX_SNAPSHOT_SIGNING_KEY_ID` or, as a fallback, an
+   * 8-char SHA-256 fingerprint derived from the secret itself.
+   */
+  key_id: string;
 };
+
+/**
+ * Derive a short, non-reversible fingerprint of the signing secret, used as
+ * the `key_id` when no explicit identifier is configured.
+ */
+export function deriveKeyIdFromSecret(secret: string): string {
+  return createHash("sha256").update(secret).digest("hex").slice(0, 8);
+}
 
 function sortKeys(value: unknown): unknown {
   if (value === null || typeof value !== "object") return value;
@@ -74,13 +90,18 @@ export function canonicalize(body: SnapshotBody): string {
   return JSON.stringify(sortKeys(body));
 }
 
-export function signSnapshot(body: SnapshotBody, secret: string): SignedSnapshot {
+export function signSnapshot(
+  body: SnapshotBody,
+  secret: string,
+  keyId?: string,
+): SignedSnapshot {
   const payload = canonicalize(body);
   return {
     body,
     signature: `sha256=${computeHmac(payload, secret)}`,
     signature_algorithm: "HMAC-SHA256",
     signed_at: new Date().toISOString(),
+    key_id: keyId && keyId.trim() !== "" ? keyId : deriveKeyIdFromSecret(secret),
   };
 }
 
@@ -96,6 +117,12 @@ function csvEscape(value: unknown): string {
 function csvRow(values: unknown[]): string {
   return values.map(csvEscape).join(",");
 }
+
+/**
+ * RFC-4180 mandates CRLF as the row separator. Many parsers accept LF,
+ * but the strict ones (Excel, some BI tools) won't, so we always emit CRLF.
+ */
+const CRLF = "\r\n";
 
 export function buildHostsCsv(body: SnapshotBody): string {
   const lines: string[] = [];
@@ -127,7 +154,7 @@ export function buildHostsCsv(body: SnapshotBody): string {
       ]),
     );
   }
-  return lines.join("\n") + "\n";
+  return lines.join(CRLF) + CRLF;
 }
 
 export function buildEventsCsv(body: SnapshotBody): string {
@@ -136,12 +163,30 @@ export function buildEventsCsv(body: SnapshotBody): string {
   for (const e of body.events) {
     lines.push(csvRow([e.category, e.detected_at, e.host_id, e.cli, e.description]));
   }
-  return lines.join("\n") + "\n";
+  return lines.join(CRLF) + CRLF;
+}
+
+/**
+ * Pure RFC-4180 CSV containing only the hosts table. Used when callers
+ * pass `?part=hosts`, so strict parsers (Excel etc) get a single-section
+ * file with no `#` comments and no multi-table mixing.
+ */
+export function buildHostsCsvOnly(body: SnapshotBody): string {
+  return buildHostsCsv(body);
+}
+
+/**
+ * Pure RFC-4180 CSV containing only the events table. Used when callers
+ * pass `?part=events`.
+ */
+export function buildEventsCsvOnly(body: SnapshotBody): string {
+  return buildEventsCsv(body);
 }
 
 /**
  * Single multi-section CSV (RFC-4180-ish — many tools accept this; for stricter
- * tools, fetch hosts + events separately via the structured endpoints).
+ * tools, callers can request `?part=hosts` or `?part=events` to get a clean
+ * single-table CSV instead).
  */
 export function buildCombinedCsv(body: SnapshotBody): string {
   const header = [
@@ -154,10 +199,10 @@ export function buildCombinedCsv(body: SnapshotBody): string {
     "",
     "## Hosts",
     "",
-  ].join("\n");
+  ].join(CRLF);
   const events =
     body.events.length > 0
-      ? "\n## Events (last 7d)\n\n" + buildEventsCsv(body)
-      : "\n## Events (last 7d)\n\n(none)\n";
+      ? CRLF + "## Events (last 7d)" + CRLF + CRLF + buildEventsCsv(body)
+      : CRLF + "## Events (last 7d)" + CRLF + CRLF + "(none)" + CRLF;
   return header + buildHostsCsv(body) + events;
 }

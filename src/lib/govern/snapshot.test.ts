@@ -2,8 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   buildCombinedCsv,
   buildEventsCsv,
+  buildEventsCsvOnly,
   buildHostsCsv,
+  buildHostsCsvOnly,
   canonicalize,
+  deriveKeyIdFromSecret,
   signSnapshot,
   type SnapshotBody,
 } from "./snapshot";
@@ -108,12 +111,42 @@ describe("signSnapshot", () => {
     const ok = verifyHmac(canonicalize(signed.body), "1".repeat(64), signed.signature);
     expect(ok).toBe(false);
   });
+
+  it("includes a key_id derived from the secret when no explicit id is given", () => {
+    const signed = signSnapshot(fixture(), SECRET);
+    // 8-char hex fingerprint as documented; deterministic per secret.
+    expect(signed.key_id).toMatch(/^[a-f0-9]{8}$/);
+    expect(signed.key_id).toBe(deriveKeyIdFromSecret(SECRET));
+    // A different secret yields a different fingerprint.
+    const otherSigned = signSnapshot(fixture(), "1".repeat(64));
+    expect(otherSigned.key_id).not.toBe(signed.key_id);
+  });
+
+  it("uses the explicit keyId when provided", () => {
+    const signed = signSnapshot(fixture(), SECRET, "rot-2026-q2");
+    expect(signed.key_id).toBe("rot-2026-q2");
+  });
+
+  it("falls back to fingerprint when the explicit keyId is empty", () => {
+    const signed = signSnapshot(fixture(), SECRET, "  ");
+    expect(signed.key_id).toBe(deriveKeyIdFromSecret(SECRET));
+  });
+
+  it("round-trips: caller can re-canonicalize and re-verify the signed body", () => {
+    const signed = signSnapshot(fixture(), SECRET, "rot-2026-q2");
+    // Simulates a verifier receiving the JSON over the wire.
+    const wire = JSON.parse(JSON.stringify(signed));
+    expect(wire.key_id).toBe("rot-2026-q2");
+    expect(wire.signature_algorithm).toBe("HMAC-SHA256");
+    const ok = verifyHmac(canonicalize(wire.body), SECRET, wire.signature);
+    expect(ok).toBe(true);
+  });
 });
 
 describe("buildHostsCsv", () => {
   it("emits a header row plus one row per host with semicolon-separated multi-values", () => {
     const csv = buildHostsCsv(fixture());
-    const lines = csv.trim().split("\n");
+    const lines = csv.trim().split(/\r?\n/);
     expect(lines[0]).toBe(
       "host_id,os,os_version,govern_mode,ai_clis,active_frameworks,config_version,first_seen,last_seen",
     );
@@ -121,6 +154,15 @@ describe("buildHostsCsv", () => {
     expect(lines[1]).toContain("alice-mbp");
     expect(lines[1]).toContain("claude:prevent;copilot:wrap");
     expect(lines[1]).toContain("iso27001;soc2");
+  });
+
+  it("uses CRLF line endings per RFC-4180", () => {
+    const csv = buildHostsCsv(fixture());
+    // Every separator is CRLF, including the trailing one.
+    expect(csv.endsWith("\r\n")).toBe(true);
+    // No bare LF (each LF is preceded by CR).
+    const bareLF = csv.match(/(?<!\r)\n/g);
+    expect(bareLF).toBe(null);
   });
 
   it("escapes commas/quotes/newlines correctly", () => {
@@ -147,11 +189,37 @@ describe("buildHostsCsv", () => {
 describe("buildEventsCsv", () => {
   it("emits a header plus one row per event", () => {
     const csv = buildEventsCsv(fixture());
-    const lines = csv.trim().split("\n");
+    const lines = csv.trim().split(/\r?\n/);
     expect(lines[0]).toBe("category,detected_at,host_id,cli,description");
     expect(lines).toHaveLength(3);
     expect(lines[1]).toContain("tamper");
     expect(lines[2]).toContain("ungoverned");
+  });
+
+  it("uses CRLF line endings per RFC-4180", () => {
+    const csv = buildEventsCsv(fixture());
+    expect(csv.endsWith("\r\n")).toBe(true);
+    const bareLF = csv.match(/(?<!\r)\n/g);
+    expect(bareLF).toBe(null);
+  });
+});
+
+describe("buildHostsCsvOnly / buildEventsCsvOnly", () => {
+  it("hosts-only is strict RFC-4180: no #-comments, no section markers, CRLF", () => {
+    const csv = buildHostsCsvOnly(fixture());
+    expect(csv).not.toMatch(/^#/m);
+    expect(csv).not.toContain("##");
+    // Single header line followed by data rows separated by CRLF.
+    expect(csv.startsWith("host_id,os,os_version")).toBe(true);
+    expect(csv.endsWith("\r\n")).toBe(true);
+  });
+
+  it("events-only is strict RFC-4180: no #-comments, no section markers, CRLF", () => {
+    const csv = buildEventsCsvOnly(fixture());
+    expect(csv).not.toMatch(/^#/m);
+    expect(csv).not.toContain("##");
+    expect(csv.startsWith("category,detected_at,host_id")).toBe(true);
+    expect(csv.endsWith("\r\n")).toBe(true);
   });
 });
 
@@ -161,6 +229,13 @@ describe("buildCombinedCsv", () => {
     expect(csv).toMatch(/^# Cortex Govern Snapshot/);
     expect(csv).toMatch(/# generated_at,2026-05-01T12:00:00\.000Z/);
     expect(csv).toMatch(/totals: hosts=2 enforced=1 advisory=1 off=0/);
+  });
+
+  it("uses CRLF line endings throughout", () => {
+    const csv = buildCombinedCsv(fixture());
+    expect(csv.endsWith("\r\n")).toBe(true);
+    const bareLF = csv.match(/(?<!\r)\n/g);
+    expect(bareLF).toBe(null);
   });
 
   it("includes hosts and events sections", () => {
@@ -173,6 +248,6 @@ describe("buildCombinedCsv", () => {
 
   it("'(none)' when there are no events", () => {
     const csv = buildCombinedCsv(fixture({ events: [] }));
-    expect(csv).toContain("## Events (last 7d)\n\n(none)");
+    expect(csv).toContain("## Events (last 7d)\r\n\r\n(none)");
   });
 });

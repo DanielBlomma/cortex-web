@@ -208,6 +208,7 @@ export default function GovernOverviewPage() {
         <div className="flex gap-2">
           <a
             href="/api/v1/govern/snapshot?format=csv"
+            aria-label="Download CSV snapshot"
             className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-accent"
           >
             <Download className="h-4 w-4" />
@@ -215,6 +216,7 @@ export default function GovernOverviewPage() {
           </a>
           <a
             href="/api/v1/govern/snapshot?format=json"
+            aria-label="Download signed JSON snapshot"
             className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-sm hover:bg-accent"
             title="Signed JSON snapshot for audit. Requires CORTEX_SNAPSHOT_SIGNING_KEY."
           >

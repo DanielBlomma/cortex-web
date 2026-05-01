@@ -10,6 +10,15 @@ import {
 import { applyRateLimit } from "@/lib/rate-limit";
 import { getOwnerId } from "@/lib/auth/owner";
 import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
+import { withTimeout } from "@/lib/timeout";
+
+/**
+ * Per-query budget for the fan-out reads in this route. If a single query
+ * exceeds it, the response is marked `degraded: true` with the slow
+ * section listed in `degraded_sections`, and the section is filled with
+ * zero/empty so the dashboard can still render the rest.
+ */
+const QUERY_TIMEOUT_MS = 5000;
 
 /**
  * GET /api/v1/govern/overview
@@ -35,8 +44,23 @@ export async function GET(req: Request) {
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [hosts, modeCounts, ungovernedCount, tamperCount, applyCount, recentTamper, recentUngov, recentApply] =
-    await Promise.all([
+  const degradedSections: string[] = [];
+  function record<T>(section: string, result: { value: T; timedOut: boolean }): T {
+    if (result.timedOut) degradedSections.push(section);
+    return result.value;
+  }
+
+  const [
+    hostsResult,
+    modeCountsResult,
+    ungovernedCountResult,
+    tamperCountResult,
+    applyCountResult,
+    recentTamperResult,
+    recentUngovResult,
+    recentApplyResult,
+  ] = await Promise.all([
+    withTimeout(
       db
         .select({
           hostId: hostEnrollment.hostId,
@@ -52,7 +76,11 @@ export async function GET(req: Request) {
         .from(hostEnrollment)
         .where(eq(hostEnrollment.orgId, owner.ownerId))
         .orderBy(desc(hostEnrollment.lastSeen)),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
 
+    withTimeout(
       db
         .select({
           mode: hostEnrollment.governMode,
@@ -61,7 +89,11 @@ export async function GET(req: Request) {
         .from(hostEnrollment)
         .where(eq(hostEnrollment.orgId, owner.ownerId))
         .groupBy(hostEnrollment.governMode),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
 
+    withTimeout(
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(ungovernedSessionEvent)
@@ -71,7 +103,11 @@ export async function GET(req: Request) {
             gte(ungovernedSessionEvent.detectedAt, sevenDaysAgo),
           ),
         ),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
 
+    withTimeout(
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(hookTamperEvent)
@@ -81,7 +117,11 @@ export async function GET(req: Request) {
             gte(hookTamperEvent.detectedAt, sevenDaysAgo),
           ),
         ),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
 
+    withTimeout(
       db
         .select({
           success: managedSettingsAudit.success,
@@ -95,7 +135,11 @@ export async function GET(req: Request) {
           ),
         )
         .groupBy(managedSettingsAudit.success),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
 
+    withTimeout(
       db
         .select({
           id: hookTamperEvent.id,
@@ -115,7 +159,11 @@ export async function GET(req: Request) {
         )
         .orderBy(desc(hookTamperEvent.detectedAt))
         .limit(20),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
 
+    withTimeout(
       db
         .select({
           id: ungovernedSessionEvent.id,
@@ -135,7 +183,11 @@ export async function GET(req: Request) {
         )
         .orderBy(desc(ungovernedSessionEvent.detectedAt))
         .limit(20),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
 
+    withTimeout(
       db
         .select({
           id: managedSettingsAudit.id,
@@ -156,7 +208,20 @@ export async function GET(req: Request) {
         )
         .orderBy(desc(managedSettingsAudit.appliedAt))
         .limit(20),
-    ]);
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
+  ]);
+
+  const hosts = record("hosts", hostsResult);
+  const modeCounts = record("mode_counts", modeCountsResult);
+  const ungovernedCount = record("ungoverned_count", ungovernedCountResult);
+  const tamperCount = record("tamper_count", tamperCountResult);
+  const applyCount = record("apply_count", applyCountResult);
+  const recentTamper = record("recent_tamper", recentTamperResult);
+  const recentUngov = record("recent_ungoverned", recentUngovResult);
+  const recentApply = record("recent_apply", recentApplyResult);
+  const degraded = degradedSections.length > 0;
 
   const totalHosts = hosts.length;
   const modeBreakdown = {
@@ -175,6 +240,8 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     generated_at: new Date().toISOString(),
+    degraded,
+    degraded_sections: degradedSections,
     org: {
       total_hosts: totalHosts,
       mode_breakdown: modeBreakdown,

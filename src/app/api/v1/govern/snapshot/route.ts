@@ -12,24 +12,39 @@ import { getOwnerId } from "@/lib/auth/owner";
 import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 import {
   buildCombinedCsv,
+  buildEventsCsvOnly,
+  buildHostsCsvOnly,
   signSnapshot,
   type SnapshotBody,
   type SnapshotEvent,
   type SnapshotHost,
 } from "@/lib/govern/snapshot";
+import { withTimeout } from "@/lib/timeout";
 
 /**
- * GET /api/v1/govern/snapshot?format=json|csv
+ * Per-query budget for the fan-out reads in this route. If a single query
+ * exceeds it, we record the section as `degraded` and return zero/empty
+ * for that section rather than letting one slow query stall the whole
+ * snapshot.
+ */
+const QUERY_TIMEOUT_MS = 5000;
+
+/**
+ * GET /api/v1/govern/snapshot?format=json|csv&part=hosts|events
  *
  * Compliance snapshot for revisor. Same data as /api/v1/govern/overview
  * but framed as a tamper-evident artefact:
  *   - format=json (default): SignedSnapshot with HMAC-SHA256 over the body
- *   - format=csv: human/machine-readable CSV with totals header + hosts +
- *                 events (last 7 days)
+ *   - format=csv: combined human-readable CSV with totals header + hosts +
+ *                 events (last 7 days). Mixes `#`-comments and multiple
+ *                 sections, which strict RFC-4180 parsers reject.
+ *   - format=csv&part=hosts: clean RFC-4180 CSV of just the hosts table.
+ *   - format=csv&part=events: clean RFC-4180 CSV of just the events table.
  *
  * Signing key comes from CORTEX_SNAPSHOT_SIGNING_KEY env. If unset, JSON
- * format returns 503 — we won't ship an unsigned artefact and pretend
- * it's verifiable.
+ * format returns 500 — operator misconfiguration, not a transient outage.
+ * The optional CORTEX_SNAPSHOT_SIGNING_KEY_ID env names the key for
+ * verifiers; if absent we derive a short fingerprint from the secret.
  */
 export async function GET(req: Request) {
   await ensureRuntimeSchema();
@@ -41,18 +56,47 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const format = new URL(req.url).searchParams.get("format") ?? "json";
+  const params = new URL(req.url).searchParams;
+  const format = params.get("format") ?? "json";
   if (format !== "json" && format !== "csv") {
     return NextResponse.json(
       { error: "format must be 'json' or 'csv'" },
       { status: 400 },
     );
   }
+  const part = params.get("part");
+  if (part !== null && part !== "hosts" && part !== "events") {
+    return NextResponse.json(
+      { error: "part must be 'hosts' or 'events' when set" },
+      { status: 400 },
+    );
+  }
+  if (part !== null && format !== "csv") {
+    return NextResponse.json(
+      { error: "part is only valid with format=csv" },
+      { status: 400 },
+    );
+  }
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [hosts, modeCounts, ungovernedCount, tamperCount, applyCount, recentTamper, recentUngov, recentApply] =
-    await Promise.all([
+  const degradedSections: string[] = [];
+  function record<T>(section: string, result: { value: T; timedOut: boolean }): T {
+    if (result.timedOut) degradedSections.push(section);
+    return result.value;
+  }
+
+  const [
+    hostsResult,
+    modeCountsResult,
+    ungovernedCountResult,
+    tamperCountResult,
+    applyCountResult,
+    recentTamperResult,
+    recentUngovResult,
+    recentApplyResult,
+  ] = await Promise.all([
+    withTimeout(
       db
         .select({
           hostId: hostEnrollment.hostId,
@@ -68,11 +112,19 @@ export async function GET(req: Request) {
         .from(hostEnrollment)
         .where(eq(hostEnrollment.orgId, owner.ownerId))
         .orderBy(desc(hostEnrollment.lastSeen)),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
+    withTimeout(
       db
         .select({ mode: hostEnrollment.governMode, count: sql<number>`count(*)::int` })
         .from(hostEnrollment)
         .where(eq(hostEnrollment.orgId, owner.ownerId))
         .groupBy(hostEnrollment.governMode),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
+    withTimeout(
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(ungovernedSessionEvent)
@@ -82,6 +134,10 @@ export async function GET(req: Request) {
             gte(ungovernedSessionEvent.detectedAt, sevenDaysAgo),
           ),
         ),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
+    withTimeout(
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(hookTamperEvent)
@@ -91,6 +147,10 @@ export async function GET(req: Request) {
             gte(hookTamperEvent.detectedAt, sevenDaysAgo),
           ),
         ),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
+    withTimeout(
       db
         .select({ success: managedSettingsAudit.success, count: sql<number>`count(*)::int` })
         .from(managedSettingsAudit)
@@ -101,6 +161,10 @@ export async function GET(req: Request) {
           ),
         )
         .groupBy(managedSettingsAudit.success),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
+    withTimeout(
       db
         .select({
           hostId: hookTamperEvent.hostId,
@@ -117,6 +181,10 @@ export async function GET(req: Request) {
         )
         .orderBy(desc(hookTamperEvent.detectedAt))
         .limit(200),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
+    withTimeout(
       db
         .select({
           hostId: ungovernedSessionEvent.hostId,
@@ -134,6 +202,10 @@ export async function GET(req: Request) {
         )
         .orderBy(desc(ungovernedSessionEvent.detectedAt))
         .limit(200),
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
+    withTimeout(
       db
         .select({
           hostId: managedSettingsAudit.hostId,
@@ -153,7 +225,20 @@ export async function GET(req: Request) {
         )
         .orderBy(desc(managedSettingsAudit.appliedAt))
         .limit(200),
-    ]);
+      QUERY_TIMEOUT_MS,
+      [],
+    ),
+  ]);
+
+  const hosts = record("hosts", hostsResult);
+  const modeCounts = record("mode_counts", modeCountsResult);
+  const ungovernedCount = record("ungoverned_count", ungovernedCountResult);
+  const tamperCount = record("tamper_count", tamperCountResult);
+  const applyCount = record("apply_count", applyCountResult);
+  const recentTamper = record("recent_tamper", recentTamperResult);
+  const recentUngov = record("recent_ungoverned", recentUngovResult);
+  const recentApply = record("recent_apply", recentApplyResult);
+  const degraded = degradedSections.length > 0;
 
   const modeBreakdown = { off: 0, advisory: 0, enforced: 0 };
   for (const row of modeCounts) {
@@ -220,13 +305,28 @@ export async function GET(req: Request) {
   };
 
   if (format === "csv") {
-    const csv = buildCombinedCsv(body);
+    const dateStamp = body.generated_at.slice(0, 10);
+    let csv: string;
+    let filename: string;
+    if (part === "hosts") {
+      csv = buildHostsCsvOnly(body);
+      filename = `cortex-govern-snapshot-${dateStamp}-hosts.csv`;
+    } else if (part === "events") {
+      csv = buildEventsCsvOnly(body);
+      filename = `cortex-govern-snapshot-${dateStamp}-events.csv`;
+    } else {
+      csv = buildCombinedCsv(body);
+      filename = `cortex-govern-snapshot-${dateStamp}.csv`;
+    }
     return new Response(csv, {
       status: 200,
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="cortex-govern-snapshot-${body.generated_at.slice(0, 10)}.csv"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "private, no-store",
+        ...(degraded
+          ? { "X-Cortex-Degraded": degradedSections.join(",") }
+          : {}),
       },
     });
   }
@@ -238,16 +338,24 @@ export async function GET(req: Request) {
         error:
           "Snapshot signing not configured. Set CORTEX_SNAPSHOT_SIGNING_KEY in the cortex-web environment to enable signed JSON exports. CSV exports work without signing.",
       },
-      { status: 503 },
+      // 500 — operator misconfiguration, a permanent error from the
+      // client's perspective until the env var is set. Not 503 (transient
+      // outage) and not 501 (feature unimplemented): the feature exists,
+      // it just isn't configured here.
+      { status: 500 },
     );
   }
 
-  const signed = signSnapshot(body, secret);
-  return NextResponse.json(signed, {
-    status: 200,
-    headers: {
-      "Content-Disposition": `attachment; filename="cortex-govern-snapshot-${body.generated_at.slice(0, 10)}.json"`,
-      "Cache-Control": "private, no-store",
+  const keyId = process.env.CORTEX_SNAPSHOT_SIGNING_KEY_ID;
+  const signed = signSnapshot(body, secret, keyId);
+  return NextResponse.json(
+    { ...signed, degraded, degraded_sections: degradedSections },
+    {
+      status: 200,
+      headers: {
+        "Content-Disposition": `attachment; filename="cortex-govern-snapshot-${body.generated_at.slice(0, 10)}.json"`,
+        "Cache-Control": "private, no-store",
+      },
     },
-  });
+  );
 }

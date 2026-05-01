@@ -10,6 +10,7 @@ import { upsertAuditDaily } from "@/lib/operations/rollups";
 import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { getPolicyComplianceMetadata } from "@/lib/policies/metadata";
+import { ensureRuntimeSchema } from "@/lib/db/ensure-runtime-schema";
 
 /**
  * GET /api/v1/policies/sync
@@ -18,6 +19,7 @@ import { getPolicyComplianceMetadata } from "@/lib/policies/metadata";
  * Returns { rules: [...] } in the format cortex-enterprise expects.
  */
 export async function GET(req: Request) {
+  await ensureRuntimeSchema();
   const rl = applyRateLimit(req, 60);
   if (rl) return rl;
 
@@ -95,43 +97,49 @@ export async function GET(req: Request) {
   const userAgent = req.headers.get("user-agent") ?? null;
 
   const occurredAt = new Date();
-  await db.transaction(async (tx) => {
-    await tx.insert(auditLog).values({
-      orgId: key.orgId,
-      apiKeyId: key.id,
-      apiKeyEnvironment: key.environment,
-      source: "web",
-      action: "sync",
-      eventType: "policy_sync",
-      evidenceLevel: "diagnostic",
-      resourceType: "policy_sync",
-      resourceId: key.id,
-      instanceId,
-      sessionId,
-      description: `Policy sync served for ${key.environment}`,
-      metadata: JSON.stringify({
-        api_key_id: key.id,
-        environment: key.environment,
-        instance_id: instanceId,
-        session_id: sessionId,
-        synced_rules: rules.length,
-        version,
-      }),
-      ipAddress,
-      userAgent,
-      occurredAt,
+  // Audit/observability is best-effort — rules payload is the contract here.
+  // Surfacing a 500 to the cortex client because audit insert hit a runtime
+  // schema gap blocks every host's policy sync.
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(auditLog).values({
+        orgId: key.orgId,
+        apiKeyId: key.id,
+        apiKeyEnvironment: key.environment,
+        source: "web",
+        action: "sync",
+        eventType: "policy_sync",
+        evidenceLevel: "diagnostic",
+        resourceType: "policy_sync",
+        resourceId: key.id,
+        instanceId,
+        sessionId,
+        description: `Policy sync served for ${key.environment}`,
+        metadata: JSON.stringify({
+          api_key_id: key.id,
+          environment: key.environment,
+          instance_id: instanceId,
+          session_id: sessionId,
+          synced_rules: rules.length,
+          version,
+        }),
+        ipAddress,
+        userAgent,
+        occurredAt,
+      });
+      await upsertAuditDaily(tx, {
+        orgId: key.orgId,
+        occurredAt,
+        source: "web",
+        evidenceLevel: "diagnostic",
+        eventType: "policy_sync",
+      });
     });
-    await upsertAuditDaily(tx, {
-      orgId: key.orgId,
-      occurredAt,
-      source: "web",
-      evidenceLevel: "diagnostic",
-      eventType: "policy_sync",
-    });
-  });
-
-  await refreshOperationsSnapshot(key.orgId);
-  await invalidateOwnerRouteCache(key.orgId);
+    await refreshOperationsSnapshot(key.orgId);
+    await invalidateOwnerRouteCache(key.orgId);
+  } catch (err) {
+    console.error("[policies/sync] audit/snapshot non-fatal failure:", err);
+  }
 
   return NextResponse.json(response);
 }

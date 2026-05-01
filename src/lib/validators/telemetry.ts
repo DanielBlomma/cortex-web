@@ -26,6 +26,7 @@ export const telemetryPushSchema = z
     client_version: z.string().max(50).optional(),
     instance_id: z.string().max(64).regex(/^[a-f0-9]+$/).optional(),
     session_id: z.string().max(64).regex(SESSION_ID_RE).optional(),
+    repo: z.string().max(255).optional(),
     tool_metrics: z
       .record(
         z.string(),

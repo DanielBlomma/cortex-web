@@ -5,6 +5,7 @@ import { licenses } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import { verifyApiKey } from "@/lib/api-keys/verify";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { ensureDefaultLicense } from "@/lib/licenses/default";
 
 /**
  * POST /api/v1/license/verify
@@ -66,17 +67,37 @@ export async function POST(req: Request) {
     return deny("invalid_key");
   }
 
-  const [license] = await db
-    .select({
-      edition: licenses.edition,
-      features: licenses.features,
-      expiresAt: licenses.expiresAt,
-      maxRepos: licenses.maxRepos,
-      status: licenses.status,
-    })
-    .from(licenses)
-    .where(and(eq(licenses.orgId, key.orgId), eq(licenses.status, "active")))
-    .limit(1);
+  const orgId = key.orgId;
+
+  async function readActiveLicense() {
+    const [row] = await db
+      .select({
+        edition: licenses.edition,
+        features: licenses.features,
+        expiresAt: licenses.expiresAt,
+        maxRepos: licenses.maxRepos,
+        status: licenses.status,
+      })
+      .from(licenses)
+      .where(and(eq(licenses.orgId, orgId), eq(licenses.status, "active")))
+      .limit(1);
+    return row;
+  }
+
+  let license = await readActiveLicense();
+
+  // Self-heal: orgs that pre-date the auto-grant on POST /api/v1/api-keys
+  // (or whose grant failed transiently) get a community license created
+  // on first verify call. Without this, every existing pre-fix install
+  // would have to re-create their API key to recover.
+  if (!license) {
+    try {
+      await ensureDefaultLicense(orgId);
+      license = await readActiveLicense();
+    } catch (err) {
+      console.error("ensureDefaultLicense failed during verify for", orgId, err);
+    }
+  }
 
   if (!license) {
     return deny("no_license");

@@ -10,6 +10,7 @@ import { logAudit } from "@/lib/audit/log";
 import { invalidateOwnerRouteCache } from "@/lib/cache/owner-route-cache";
 import { refreshOperationsSnapshot } from "@/lib/operations/snapshot";
 import { applyRateLimit } from "@/lib/rate-limit";
+import { ensureDefaultLicense } from "@/lib/licenses/default";
 
 const AVAILABLE_SCOPES = ["telemetry", "policy", "govern"] as const;
 const ENVIRONMENT_RE = /^[a-z0-9][a-z0-9-]{0,31}$/;
@@ -138,6 +139,18 @@ export async function POST(req: Request) {
       keyPrefix: apiKeys.keyPrefix,
       createdAt: apiKeys.createdAt,
     });
+
+  // Auto-grant a community-edition license on first key creation so the
+  // CLI's `cortex enterprise <key>` flow can verify successfully without
+  // a separate provisioning step. Idempotent — existing licenses (paid
+  // or otherwise) are left untouched. Failures are logged but
+  // non-fatal: the key insert above already succeeded, and the verify
+  // route has its own self-heal fallback for orgs lacking a row.
+  try {
+    await ensureDefaultLicense(owner.ownerId, { createdBy: owner.userId });
+  } catch (err) {
+    console.error("ensureDefaultLicense failed for", owner.ownerId, err);
+  }
 
   await refreshOperationsSnapshot(owner.ownerId);
   await invalidateOwnerRouteCache(owner.ownerId);

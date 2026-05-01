@@ -127,5 +127,65 @@
   html {
     @apply font-sans;
   }
+
+  :root {
+    /* Cortex neon palette */
+    --cortex-purple: 256 84% 64%;
+    --cortex-indigo: 244 78% 60%;
+    --cortex-blue: 220 92% 60%;
+    --cortex-cyan: 190 95% 55%;
+
+    /* Surfaces */
+    --cortex-bg: 222 32% 6%;
+    --cortex-surface: 222 24% 9%;
+    --cortex-surface-2: 222 22% 12%;
+    --cortex-border: 222 18% 18%;
+    --cortex-border-2: 222 18% 26%;
+
+    /* Text */
+    --cortex-fg: 210 20% 96%;
+    --cortex-fg-muted: 220 12% 64%;
+    --cortex-fg-faint: 220 10% 44%;
+
+    /* Semantic state */
+    --cortex-running: 158 78% 50%;
+    --cortex-ok: 158 70% 46%;
+    --cortex-warn: 38 96% 58%;
+    --cortex-alert: 352 90% 58%;
+    --cortex-info: var(--cortex-cyan);
+  }
+
+  .cortex-gradient-bg {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--cortex-purple)) 0%,
+      hsl(var(--cortex-indigo)) 33%,
+      hsl(var(--cortex-blue)) 66%,
+      hsl(var(--cortex-cyan)) 100%
+    );
+  }
+
+  .cortex-gradient-text {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--cortex-purple)),
+      hsl(var(--cortex-cyan))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .cortex-card {
+    background: hsl(var(--cortex-surface));
+    border: 1px solid hsl(var(--cortex-border));
+    border-radius: 0.75rem;
+  }
+
+  .cortex-card-glow {
+    box-shadow:
+      0 0 0 1px hsl(var(--cortex-border)),
+      0 0 24px -8px hsl(var(--cortex-cyan) / 0.18);
+  }
 }
 

@@ -35,3 +35,38 @@ export const governHeartbeatSchema = z.object({
 
 export type GovernAppliedPayload = z.infer<typeof governAppliedSchema>;
 export type GovernHeartbeatPayload = z.infer<typeof governHeartbeatSchema>;
+
+export const ungovernedEventSchema = z.object({
+  detected_at: z.string().datetime(),
+  host_id: z.string().min(1).max(256),
+  cli: z.string().min(1).max(64),
+  binary_path: z.string().min(1).max(1024),
+  args: z.unknown().optional(),
+  sys_user: z.string().max(128).optional(),
+  parent_pid: z.number().int().min(0).optional(),
+  pid: z.number().int().min(0).optional(),
+  action_taken: z
+    .enum(["logged", "sigterm", "skipped_cross_user", "none"])
+    .default("logged"),
+});
+
+export const ungovernedReportSchema = z.object({
+  events: z.array(ungovernedEventSchema).min(1).max(500),
+});
+
+export const hookTamperEventSchema = z.object({
+  detected_at: z.string().datetime(),
+  host_id: z.string().min(1).max(256),
+  cli: cliSchema,
+  hook_name: z.string().min(1).max(64),
+  session_id: z.string().max(128).optional(),
+  last_seen: z.string().datetime().nullable().optional(),
+  missing_seconds: z.number().int().min(0).optional(),
+});
+
+export const hookTamperReportSchema = z.object({
+  events: z.array(hookTamperEventSchema).min(1).max(500),
+});
+
+export type UngovernedReportPayload = z.infer<typeof ungovernedReportSchema>;
+export type HookTamperReportPayload = z.infer<typeof hookTamperReportSchema>;

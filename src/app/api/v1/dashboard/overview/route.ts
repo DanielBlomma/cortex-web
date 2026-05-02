@@ -91,7 +91,7 @@ export async function GET(req: Request) {
 
     const ownerId = owner.ownerId;
     await timing.timeStep("assert_org_scope", () =>
-      assertOrgScopeHasDataOrThrow(ownerId),
+      assertOrgScopeHasDataOrThrow(ownerId, owner.userId),
     );
 
     const payload = await timing.timeStep("route_cache", () =>
@@ -413,6 +413,7 @@ export async function GET(req: Request) {
             code: "org_scope_mismatch",
             error: error.message,
             ownerId: error.ownerId,
+            availableScopes: error.availableScopes,
           },
           { status: 409 },
         ),

@@ -115,6 +115,27 @@ type OperationsSummary = {
   };
 };
 
+type OrgScopeSuggestion = {
+  ownerId: string;
+  name: string;
+  slug: string;
+  telemetryEvents: number;
+  auditEvents: number;
+  violationCount: number;
+  reviewCount: number;
+  workflowCount: number;
+  apiKeyCount: number;
+  policyCount: number;
+  totalSignals: number;
+};
+
+type OrgScopeMismatch = {
+  code: "org_scope_mismatch";
+  error: string;
+  ownerId: string;
+  availableScopes: OrgScopeSuggestion[];
+};
+
 function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -169,6 +190,9 @@ export default function DashboardPage() {
   const [policies, setPolicies] = useState<OverviewPolicy[]>([]);
   const [totalPolicies, setTotalPolicies] = useState(0);
   const [operations, setOperations] = useState<OperationsSummary | null>(null);
+  const [scopeMismatch, setScopeMismatch] = useState<OrgScopeMismatch | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -179,6 +203,17 @@ export default function DashboardPage() {
         | Record<string, unknown>
         | null;
       if (!res.ok) {
+        if (data?.code === "org_scope_mismatch") {
+          const mismatch = data as unknown as OrgScopeMismatch;
+          const mismatchError = new Error(mismatch.error) as Error & {
+            code: string;
+            scopeMismatch: OrgScopeMismatch;
+          };
+          mismatchError.code = mismatch.code;
+          mismatchError.scopeMismatch = mismatch;
+          throw mismatchError;
+        }
+
         const message =
           typeof data?.error === "string" ? data.error : `Failed to load ${url}`;
         const detail =
@@ -213,8 +248,22 @@ export default function DashboardPage() {
       setPolicies(payload.policies.items ?? []);
       setTotalPolicies(payload.policies.totalPolicies ?? 0);
       setOperations(payload.operations);
+      setScopeMismatch(null);
       setError(null);
     } catch (fetchError) {
+      if (
+        fetchError &&
+        typeof fetchError === "object" &&
+        "code" in fetchError &&
+        fetchError.code === "org_scope_mismatch" &&
+        "scopeMismatch" in fetchError
+      ) {
+        setScopeMismatch(fetchError.scopeMismatch as OrgScopeMismatch);
+        setError(null);
+        return;
+      }
+
+      setScopeMismatch(null);
       setError(
         fetchError instanceof Error
           ? fetchError.message
@@ -248,6 +297,141 @@ export default function DashboardPage() {
 
   const daily = telemetry?.daily ?? [];
   const maxSearches = Math.max(...daily.map((d) => Number(d.searches)), 1);
+
+  if (scopeMismatch && !loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-white">Overview</h1>
+            <p className="text-sm text-zinc-400 mt-1">
+              Your organization&apos;s Cortex status at a glance.
+            </p>
+          </div>
+          <DashboardInfoButton
+            content={dashboardHelp.overviewPage}
+            variant="pill"
+            label="Page guide"
+          />
+        </div>
+
+        <Card className="border-amber-400/20 bg-amber-400/10">
+          <CardHeader>
+            <CardTitle className="text-base text-amber-100 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-300" />
+              This organization has no Cortex data yet
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <p className="text-sm text-amber-50/90">
+                You are currently scoped to{" "}
+                <span className="font-mono text-amber-100">
+                  {scopeMismatch.ownerId}
+                </span>
+                , but Cortex data exists under another organization in this
+                environment.
+              </p>
+              <p className="text-sm text-amber-100/70">
+                Use the organization switcher in the header to move to the org
+                that actually owns the telemetry, audit, policy, and rollout
+                data.
+              </p>
+            </div>
+
+            {scopeMismatch.availableScopes.length > 0 ? (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {scopeMismatch.availableScopes.map((scope) => (
+                  <div
+                    key={scope.ownerId}
+                    className="rounded-xl border border-amber-300/15 bg-black/20 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-white">
+                          {scope.name}
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-1">
+                          `{scope.slug}`
+                        </p>
+                        <p className="text-[11px] text-zinc-500 mt-2 font-mono">
+                          {scope.ownerId}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="text-amber-200 border-amber-300/20 bg-amber-300/10"
+                      >
+                        {formatNumber(scope.totalSignals)} signals
+                      </Badge>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                      {scope.telemetryEvents > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="text-emerald-300 border-emerald-400/20 bg-emerald-400/10"
+                        >
+                          {formatNumber(scope.telemetryEvents)} telemetry
+                        </Badge>
+                      )}
+                      {scope.auditEvents > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="text-sky-200 border-sky-400/20 bg-sky-400/10"
+                        >
+                          {formatNumber(scope.auditEvents)} audit
+                        </Badge>
+                      )}
+                      {scope.violationCount > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="text-amber-200 border-amber-300/20 bg-amber-300/10"
+                        >
+                          {formatNumber(scope.violationCount)} violations
+                        </Badge>
+                      )}
+                      {scope.reviewCount > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="text-violet-200 border-violet-400/20 bg-violet-400/10"
+                        >
+                          {formatNumber(scope.reviewCount)} reviews
+                        </Badge>
+                      )}
+                      {scope.workflowCount > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="text-zinc-200 border-white/10 bg-white/5"
+                        >
+                          {formatNumber(scope.workflowCount)} workflows
+                        </Badge>
+                      )}
+                      {scope.policyCount > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="text-zinc-200 border-white/10 bg-white/5"
+                        >
+                          {formatNumber(scope.policyCount)} policies
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-zinc-300">
+                Cortex data exists in this environment, but no other accessible
+                organization with data could be identified for your current
+                session. Double-check that you are in the right Clerk
+                organization or that your membership has been synced.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

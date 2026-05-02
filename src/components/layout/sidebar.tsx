@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { CortexLogo } from "@/components/brand/cortex-logo";
 
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -50,11 +51,17 @@ export function Sidebar() {
   return (
     <>
       <aside className="hidden lg:flex flex-col w-60 border-r border-white/5 bg-[#0a0a0f] p-4">
-        <Link href="/" className="flex items-center gap-2 px-2 mb-8">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">C</span>
-          </div>
-          <span className="font-semibold text-white">Cortex</span>
+        <Link
+          href="/"
+          className="mb-8 rounded-2xl border border-white/6 bg-white/[0.02] px-3 py-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_18px_48px_-26px_rgba(56,189,248,0.38)] transition-colors hover:border-white/10 hover:bg-white/[0.03]"
+        >
+          <CortexLogo
+            compact
+            className="items-center"
+            markClassName="h-10 w-10"
+            titleClassName="tracking-[0.28em]"
+            taglineClassName="text-[10px]"
+          />
         </Link>
 
         <nav className="flex-1 space-y-1">

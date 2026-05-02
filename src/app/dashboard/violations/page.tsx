@@ -43,10 +43,20 @@ type Violation = {
   occurredAt: string;
 };
 
+type RepoBreakdown = {
+  repo: string;
+  total: number;
+  errors: number;
+  warnings: number;
+  info: number;
+  lastSeen: string;
+};
+
 type ViolationSummary = {
   severity: SeverityCounts;
   total: number;
   byRule: RuleBreakdown[];
+  byRepo: RepoBreakdown[];
   daily: DailyRow[];
   recent: Violation[];
 };
@@ -81,6 +91,18 @@ const severityConfig: Record<
   },
 };
 
+const VIOLATION_COMPLIANCE_SIGNALS = [
+  "ISO 27001: proof that monitoring controls are detecting policy breaches",
+  "ISO 42001: operational monitoring of AI-assisted work and human oversight feedback",
+  "GDPR: evidence that risky handling patterns can be detected and investigated",
+  "NIS2: warning/error trends support incident detection, escalation, and remediation follow-up",
+] as const;
+
+const VIOLATION_SHARED_RESPONSIBILITY = [
+  "Violations show control activity and friction; they do not by themselves prove that every obligation is fully met.",
+  "Interpret them together with policies, audit trail, reviews, and workflow evidence on the Compliance page.",
+] as const;
+
 export default function ViolationsPage() {
   const [data, setData] = useState<ViolationSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,10 +121,22 @@ export default function ViolationsPage() {
   }, []);
 
   useEffect(() => {
-    void fetchData();
+    const handle = window.setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => window.clearTimeout(handle);
   }, [fetchData]);
 
   const daily = data?.daily ?? [];
+  const repos = data?.byRepo ?? [];
+  const warnedRepos = repos.filter((repo) => repo.warnings > 0);
+  const latestWarnedRepo =
+    warnedRepos.length > 0
+      ? [...warnedRepos].sort(
+          (a, b) =>
+            new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime(),
+        )[0]
+      : null;
   const maxDaily = Math.max(...daily.map((d) => d.total), 1);
 
   return (
@@ -178,6 +212,111 @@ export default function ViolationsPage() {
               );
             })}
           </div>
+
+          <Card className="border-amber-400/20 bg-amber-400/5">
+            <CardHeader>
+              <CardTitle className="text-white text-base">
+                Compliance Relevance
+                <DashboardInfoButton
+                  content={dashboardHelp.complianceViolations}
+                  className="ml-2 inline-flex"
+                />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-zinc-300">
+                Policy Violations make it visible that controls are active, triggering,
+                and leaving evidence behind. That matters for GDPR, NIS2, ISO 27001,
+                and ISO 42001 because reviewers need to see not only defined rules,
+                but also that the rules actually detect behavior in live workflows.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {VIOLATION_COMPLIANCE_SIGNALS.map((item) => (
+                  <Badge
+                    key={item}
+                    variant="outline"
+                    className="text-xs text-amber-200 border-amber-400/20 bg-amber-400/10"
+                  >
+                    {item}
+                  </Badge>
+                ))}
+              </div>
+              <div className="space-y-1">
+                {VIOLATION_SHARED_RESPONSIBILITY.map((item) => (
+                  <p key={item} className="text-xs text-zinc-400">
+                    {item}
+                  </p>
+                ))}
+              </div>
+              <a
+                href="/dashboard/reports"
+                className="inline-flex items-center rounded-md border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-200 transition-colors hover:border-white/20 hover:bg-black/30"
+              >
+                Open Compliance Report
+              </a>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/[0.02] border-white/5">
+            <CardHeader>
+              <CardTitle className="text-white text-base">
+                Repos With Warnings
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {warnedRepos.length === 0 ? (
+                <p className="text-sm text-zinc-500">
+                  No warning-level violations are tied to a repo yet.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {warnedRepos.length} repo
+                      {warnedRepos.length !== 1 ? "s" : ""} warned
+                    </Badge>
+                    {latestWarnedRepo && (
+                      <Badge variant="secondary" className="text-xs">
+                        Latest warned repo: {latestWarnedRepo.repo}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {warnedRepos.slice(0, 9).map((repo) => (
+                      <div
+                        key={repo.repo}
+                        className="rounded-xl border border-white/5 bg-black/20 px-4 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate font-mono text-sm text-white">
+                              {repo.repo}
+                            </p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              {formatDateTime(repo.lastSeen)}
+                            </p>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="border-amber-400/20 bg-amber-400/10 text-amber-300"
+                          >
+                            {repo.warnings} warning
+                            {repo.warnings !== 1 ? "s" : ""}
+                          </Badge>
+                        </div>
+                        <div className="mt-3 flex items-center gap-3 text-xs text-zinc-500">
+                          <span>{repo.total} total</span>
+                          <span>{repo.errors} errors</span>
+                          <span>{repo.info} info</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Daily violations chart */}
           {daily.length > 0 && (
@@ -355,8 +494,14 @@ export default function ViolationsPage() {
                             {v.severity}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-zinc-300 text-sm font-mono max-w-[160px] truncate">
-                          {v.repo || "—"}
+                        <TableCell className="max-w-[160px] truncate text-sm font-mono text-zinc-300">
+                          {v.repo ? (
+                            <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2 py-1 text-amber-300">
+                              {v.repo}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                         <TableCell className="font-mono text-white text-sm">
                           {v.ruleId}

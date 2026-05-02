@@ -529,6 +529,37 @@ export default function ReportsPage() {
           </div>
 
           <Card className="bg-white/[0.02] border-white/5">
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm text-zinc-200">
+                  This page is the formal evidence pack for control coverage. It shows
+                  where Cortex has direct evidence, where coverage is partial, and what
+                  still remains shared responsibility.
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Baseline mapped control matrix: ISO 27001 and ISO 42001. Regulatory
+                  evidence preview: GDPR, NIS2, and EU AI Act, shown as forward-looking
+                  packs rather than as a one-click supported-framework claim.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="text-xs text-emerald-300 border-emerald-400/20 bg-emerald-400/10">
+                  ISO 27001 mapped controls
+                </Badge>
+                <Badge variant="outline" className="text-xs text-emerald-300 border-emerald-400/20 bg-emerald-400/10">
+                  ISO 42001 mapped controls
+                </Badge>
+                <Badge variant="outline" className="text-xs text-amber-300 border-amber-400/20 bg-amber-400/10">
+                  GDPR evidence preview
+                </Badge>
+                <Badge variant="outline" className="text-xs text-amber-300 border-amber-400/20 bg-amber-400/10">
+                  NIS2 evidence preview
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/[0.02] border-white/5">
             <CardHeader>
               <CardTitle className="text-white text-base flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />

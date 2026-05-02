@@ -6,7 +6,10 @@ import {
   assertOrgScopeHasDataOrThrow,
   OrgScopeMismatchError,
 } from "@/lib/org-scope";
-import { TELEMETRY_RETENTION_POLICY } from "@/lib/telemetry/retention";
+import {
+  TELEMETRY_GOVERNANCE_GUIDANCE,
+  TELEMETRY_RETENTION_POLICY,
+} from "@/lib/telemetry/retention";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { getOwnerId } from "@/lib/auth/owner";
 import { createRequestTiming } from "@/lib/perf/request-timing";
@@ -185,6 +188,8 @@ export async function GET(req: Request) {
 
           return {
             boundary: TELEMETRY_RETENTION_POLICY,
+            governance: TELEMETRY_GOVERNANCE_GUIDANCE,
+            lastTelemetryAt: activity?.lastTelemetryAt ?? null,
             totals: {
               toolCalls: Number(totals?.totalToolCalls ?? 0),
               successfulToolCalls: Number(totals?.totalSuccessfulToolCalls ?? 0),
@@ -225,6 +230,7 @@ export async function GET(req: Request) {
                 totalDurationMs: Number(d.totalDurationMs),
                 tokensSaved: saved,
                 tokensTotal: estimateTotal(saved, results, reported),
+                tokensReported: reported > 0,
                 resultsReturned: results,
               };
             }),

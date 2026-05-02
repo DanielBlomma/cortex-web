@@ -66,6 +66,14 @@ describe("telemetryPushSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects repo values that look like filesystem paths", () => {
+    const result = telemetryPushSchema.safeParse({
+      ...validPayload,
+      repo: "/Users/example/private-repo",
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("rejects when period_end is before period_start", () => {
     const result = telemetryPushSchema.safeParse({
       ...validPayload,
@@ -118,6 +126,44 @@ describe("telemetryPushSchema", () => {
     const result = telemetryPushSchema.safeParse({
       ...validPayload,
       prompt: "show me the code",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects totals that are smaller than successful + failed calls", () => {
+    const result = telemetryPushSchema.safeParse({
+      ...validPayload,
+      total_tool_calls: 2,
+      successful_tool_calls: 2,
+      failed_tool_calls: 1,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects estimated total tokens below saved tokens", () => {
+    const result = telemetryPushSchema.safeParse({
+      ...validPayload,
+      estimated_tokens_saved: 1200,
+      estimated_tokens_total: 1000,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects tool metrics that exceed aggregate totals", () => {
+    const result = telemetryPushSchema.safeParse({
+      ...validPayload,
+      total_tool_calls: 2,
+      failed_tool_calls: 0,
+      total_duration_ms: 100,
+      tool_metrics: {
+        "context.search": {
+          calls: 3,
+          failures: 0,
+          total_duration_ms: 90,
+          total_results_returned: 10,
+          estimated_tokens_saved: 500,
+        },
+      },
     });
     expect(result.success).toBe(false);
   });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNotNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditDaily, auditLog } from "@/db/schema";
 import { AUDIT_RETENTION_POLICY } from "@/lib/audit/retention";
@@ -142,6 +142,27 @@ export async function GET(req: Request) {
             .orderBy(desc(sql`count(*)`)),
         );
 
+        const byRepo = await timing.timeStep("audit_by_repo", () =>
+          db
+            .select({
+              repo: auditLog.repo,
+              count: sql<number>`count(*)`,
+              required: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'required')`,
+              diagnostic: sql<number>`count(*) filter (where ${auditLog.evidenceLevel} = 'diagnostic')`,
+              lastSeen: sql<string>`max(${auditLog.occurredAt})`,
+            })
+            .from(auditLog)
+            .where(
+              and(
+                whereClause,
+                isNotNull(auditLog.repo),
+              ),
+            )
+            .groupBy(auditLog.repo)
+            .orderBy(desc(sql`count(*)`), desc(sql`max(${auditLog.occurredAt})`))
+            .limit(12),
+        );
+
         const rows = await timing.timeStep("audit_recent", () =>
           db
             .select({
@@ -179,6 +200,15 @@ export async function GET(req: Request) {
             eventType: row.eventType,
             count: Number(row.count),
           })),
+          byRepo: byRepo
+            .filter((row) => typeof row.repo === "string" && row.repo.length > 0)
+            .map((row) => ({
+              repo: row.repo as string,
+              count: Number(row.count),
+              required: Number(row.required),
+              diagnostic: Number(row.diagnostic),
+              lastSeen: row.lastSeen,
+            })),
           events: rows.map((row) => ({
             ...row,
             metadata: parseMetadata(row.metadata),

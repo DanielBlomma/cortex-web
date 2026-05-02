@@ -264,6 +264,7 @@ export const dashboardHelp = {
         items: [
           "A savings gauge plus daily saved-versus-used bars.",
           "Saved means tokens Cortex avoided sending because it returned smaller, relevant context.",
+          "If the client omits total token volume, Cortex estimates it from returned results rather than pretending the total is exact.",
         ],
       },
       {
@@ -291,6 +292,7 @@ export const dashboardHelp = {
         items: [
           "A per-day breakdown of searches, lookups, reloads, results, pushes, and token counts.",
           "It is designed for pattern detection rather than long-range reporting.",
+          "Token percentages may be based on reported totals or on Cortex's fallback estimate, depending on what each client version sends.",
         ],
       },
       {
@@ -304,6 +306,33 @@ export const dashboardHelp = {
         title: "How to use it",
         items: [
           "Use it when totals look odd and you need to know whether the issue is recent, intermittent, or sustained.",
+        ],
+      },
+    ],
+  },
+  analyticsBoundary: {
+    title: "Telemetry Boundary",
+    summary:
+      "This section explains exactly what Cortex telemetry contains, what is excluded, and how it supports compliance work.",
+    sections: [
+      {
+        title: "What it is",
+        items: [
+          "A plain-language summary of the telemetry boundary: counts and metadata in, raw prompts and source code out.",
+          "It also describes whether token totals are reported directly by clients or estimated by Cortex.",
+        ],
+      },
+      {
+        title: "Why it matters",
+        items: [
+          "Operators need to understand whether analytics data is suitable for product monitoring, audit evidence, or financial accounting.",
+          "Compliance teams also need to see that telemetry uses data minimization and shared-responsibility boundaries.",
+        ],
+      },
+      {
+        title: "How to use it",
+        items: [
+          "Use this card to sanity-check retention, exclusions, and control-support claims before sharing telemetry outside the engineering team.",
         ],
       },
     ],

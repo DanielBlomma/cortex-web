@@ -16,30 +16,72 @@ import { dashboardHelp } from "@/lib/dashboard/help-content";
 import { Search, Zap, FileText, RefreshCw } from "lucide-react";
 
 type Totals = {
+  toolCalls: number;
+  successfulToolCalls: number;
+  failedToolCalls: number;
+  totalDurationMs: number;
+  sessionStarts: number;
+  sessionEnds: number;
+  sessionDurationMsTotal: number;
   searches: number;
   relatedLookups: number;
+  callerLookups: number;
+  traceLookups: number;
+  impactAnalyses: number;
   ruleLookups: number;
   reloads: number;
   resultsReturned: number;
   tokensSaved: number;
   tokensTotal: number;
+  tokensReported: boolean;
   eventCount: number;
   activeInstances: number;
 };
 
 type DailyRow = {
   date: string;
+  toolCalls: number;
+  successfulToolCalls: number;
+  failedToolCalls: number;
+  totalDurationMs: number;
   searches: number;
   relatedLookups: number;
   ruleLookups: number;
+  callerLookups: number;
+  traceLookups: number;
+  impactAnalyses: number;
   reloads: number;
   resultsReturned: number;
   tokensSaved: number;
   tokensTotal: number;
+  tokensReported: boolean;
   pushCount: number;
 };
 
+type Governance = {
+  includedData: string[];
+  tokenMethodology: {
+    preferredSource: string;
+    fallback: string;
+    caveat: string;
+  };
+  complianceSupport: {
+    frameworks: string[];
+    posture: string;
+    sharedResponsibility: string[];
+  };
+};
+
+type Boundary = {
+  days: number;
+  payload: string;
+  excludes: string[];
+};
+
 type SummaryResponse = {
+  boundary: Boundary;
+  governance: Governance;
+  lastTelemetryAt: string | null;
   totals: Totals;
   activePolicies: number;
   daily: DailyRow[];
@@ -54,6 +96,14 @@ function formatNumber(n: number): string {
 function savingsPercent(saved: number, total: number): string {
   if (total <= 0) return "—";
   return `${Math.round((saved / total) * 100)}%`;
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return "No telemetry received yet";
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 export default function AnalyticsPage() {
@@ -75,11 +125,16 @@ export default function AnalyticsPage() {
   }, []);
 
   useEffect(() => {
-    void fetchData();
+    const handle = window.setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => window.clearTimeout(handle);
   }, [fetchData]);
 
   const totals = data?.totals;
   const daily = data?.daily ?? [];
+  const boundary = data?.boundary;
+  const governance = data?.governance;
   const hasData = totals && totals.eventCount > 0;
   const hasTokenTotals = totals && totals.tokensSaved > 0 && totals.tokensTotal > 0;
   const maxTokensTotal = Math.max(
@@ -155,7 +210,107 @@ export default function AnalyticsPage() {
               {totals.activeInstances} instance
               {totals.activeInstances !== 1 ? "s" : ""}
             </Badge>
+            <Badge variant="secondary" className="text-xs">
+              Last received {formatDateTime(data?.lastTelemetryAt ?? null)}
+            </Badge>
+            <Badge variant="secondary" className="text-xs">
+              {totals.tokensReported
+                ? "Token totals reported by client"
+                : "Token totals estimated by Cortex"}
+            </Badge>
           </div>
+
+          {boundary && governance && (
+            <Card className="bg-white/[0.02] border-white/5">
+              <CardHeader>
+                <CardTitle className="text-white text-base">
+                  Telemetry Boundary & Compliance
+                  <DashboardInfoButton
+                    content={dashboardHelp.analyticsBoundary}
+                    className="ml-2 inline-flex"
+                  />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-6 lg:grid-cols-2">
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      Counts and metadata only
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      Telemetry is retained for {boundary.days} days and is intended
+                      for operational analytics, monitoring, and audit-supporting
+                      evidence rather than raw content inspection.
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-zinc-500">
+                      Included
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {governance.includedData.map((item) => (
+                        <Badge key={item} variant="outline" className="text-xs text-zinc-300">
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-zinc-500">
+                      Explicitly excluded
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {boundary.excludes.map((item) => (
+                        <Badge key={item} variant="outline" className="text-xs text-zinc-400">
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium text-white">Token accounting</p>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      {governance.tokenMethodology.preferredSource}
+                    </p>
+                    <p className="mt-2 text-sm text-zinc-500">
+                      {governance.tokenMethodology.fallback}
+                    </p>
+                    <p className="mt-2 text-xs text-amber-300/80">
+                      {governance.tokenMethodology.caveat}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      Compliance support
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      {governance.complianceSupport.posture}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {governance.complianceSupport.frameworks.map((framework) => (
+                        <Badge key={framework} variant="outline" className="text-xs text-zinc-300">
+                          {framework}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {governance.complianceSupport.sharedResponsibility.map((item) => (
+                        <p key={item} className="text-xs text-zinc-500">
+                          {item}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Token savings comparison */}
           {hasTokenTotals && (
@@ -210,6 +365,11 @@ export default function AnalyticsPage() {
                     <span className="flex items-center gap-1.5">
                       <span className="inline-block h-2.5 w-2.5 rounded-sm bg-white/10" />
                       Used
+                    </span>
+                    <span>
+                      {totals.tokensReported
+                        ? "Client-reported total tokens"
+                        : "Cortex-estimated total tokens"}
                     </span>
                   </div>
                 </div>

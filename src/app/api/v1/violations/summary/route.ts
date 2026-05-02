@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/db";
 import { policies, policyViolations, violationsDaily } from "@/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { applyRateLimit } from "@/lib/rate-limit";
 import { createRequestTiming } from "@/lib/perf/request-timing";
 import { cacheOwnerRoute } from "@/lib/cache/owner-route-cache";
@@ -109,6 +109,32 @@ export async function GET(req: Request) {
             .limit(50),
         );
 
+        const byRepo = await timing.timeStep("violation_by_repo", () =>
+          db
+            .select({
+              repo: policyViolations.repo,
+              total: sql<number>`count(*)`,
+              errors: sql<number>`count(*) filter (where ${policyViolations.severity} = 'error')`,
+              warnings: sql<number>`count(*) filter (where ${policyViolations.severity} = 'warning')`,
+              info: sql<number>`count(*) filter (where ${policyViolations.severity} = 'info')`,
+              lastSeen: sql<string>`max(${policyViolations.occurredAt})`,
+            })
+            .from(policyViolations)
+            .where(
+              and(
+                eq(policyViolations.orgId, ownerId),
+                isNotNull(policyViolations.repo),
+              ),
+            )
+            .groupBy(policyViolations.repo)
+            .orderBy(
+              desc(sql`count(*) filter (where ${policyViolations.severity} = 'warning')`),
+              desc(sql`count(*)`),
+              desc(sql`max(${policyViolations.occurredAt})`),
+            )
+            .limit(20),
+        );
+
         return {
           severity: {
             error: Number(violationTotals?.errors ?? 0),
@@ -126,6 +152,16 @@ export async function GET(req: Request) {
             warnings: Number(r.warnings),
             lastSeen: r.lastSeen,
           })),
+          byRepo: byRepo
+            .filter((row) => typeof row.repo === "string" && row.repo.length > 0)
+            .map((row) => ({
+              repo: row.repo as string,
+              total: Number(row.total),
+              errors: Number(row.errors),
+              warnings: Number(row.warnings),
+              info: Number(row.info),
+              lastSeen: row.lastSeen,
+            })),
           daily: daily.reverse().map((d) => ({
             date: d.date,
             total: Number(d.total),

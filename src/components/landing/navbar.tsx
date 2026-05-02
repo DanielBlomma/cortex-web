@@ -32,23 +32,32 @@ export function Navbar() {
         </Link>
 
         <div className="hidden md:flex items-center gap-8 text-sm text-zinc-400">
+          <a href="#why-cortex" className="hover:text-white transition-colors">
+            Why Cortex
+          </a>
           <a
             href="#how-it-works"
             className="hover:text-white transition-colors"
           >
             How It Works
           </a>
+          <a href="#trust" className="hover:text-white transition-colors">
+            Trust
+          </a>
           <a href="#features" className="hover:text-white transition-colors">
             Features
+          </a>
+          <a href="#pricing" className="hover:text-white transition-colors">
+            Pricing
           </a>
         </div>
 
         <div className="flex items-center gap-3">
           <a
-            href="mailto:daniel.blomma@gmail.com?subject=Request%20Invite"
+            href="mailto:daniel.blomma@gmail.com?subject=Book%20Cortex%20Enterprise%20Intro"
             className="text-sm px-4 py-2 rounded-full bg-white text-black font-medium hover:bg-zinc-200 transition-colors"
           >
-            Request Invite
+            Book Intro
           </a>
         </div>
       </nav>

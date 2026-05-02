@@ -12,6 +12,9 @@ export function Footer() {
         </div>
 
         <div className="flex items-center gap-6 text-sm text-zinc-500">
+          <a href="#pricing" className="hover:text-white transition-colors">
+            Pricing
+          </a>
           <a
             href="https://github.com/DanielBlomma/cortex"
             target="_blank"
@@ -24,10 +27,10 @@ export function Footer() {
             Dashboard
           </Link>
           <a
-            href="mailto:daniel.blomma@gmail.com"
+            href="mailto:daniel.blomma@gmail.com?subject=Cortex%20Enterprise%20Inquiry"
             className="hover:text-white transition-colors"
           >
-            Contact
+            Contact Sales
           </a>
         </div>
       </div>

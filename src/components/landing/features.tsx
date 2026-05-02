@@ -5,34 +5,34 @@ import { useRef } from "react";
 
 const features = [
   {
-    title: "Rules that apply everywhere",
+    title: "Roll out AI without policy drift",
     description:
-      "Write a rule once. It applies to every developer, every repo, every AI tool — automatically. No need to trust that each team configured things correctly.",
+      "Set the enterprise guardrails once and keep them consistent across teams, repos, and AI tools. Cortex removes the guesswork from distributed configuration.",
   },
   {
-    title: "Prove the ROI",
+    title: "Make the AI investment legible",
     description:
-      "See searches, tokens saved, and active instances across all teams. The data you need to justify AI investment to leadership.",
+      "Show adoption, active instances, token savings, and rollout health in language leadership can use to justify continued investment.",
   },
   {
-    title: "Audit-ready from day one",
+    title: "Turn governance into evidence",
     description:
-      "Every AI interaction is logged. When an auditor asks how you govern your AI tools, you have a complete, searchable answer.",
+      "Bring together workflow snapshots, audit events, reviews, and violations so security and audit teams can inspect a real operating model instead of a slide deck.",
   },
   {
-    title: "Your code stays put",
+    title: "Keep your code where it belongs",
     description:
-      "The cloud only sees numbers and rule names. Never source code, never file contents, never what the developer searched for.",
+      "The enterprise layer receives counts, rule identifiers, and operational evidence. It does not need your source code, file contents, or prompt history to do its job.",
   },
   {
-    title: "Governed workflow, not vague guidance",
+    title: "Support compliance conversations earlier",
     description:
-      "Developers keep their AI tools, but Cortex adds an explicit plan, review, iterate, and approve loop that produces evidence instead of ad hoc chat logs.",
+      "Use Cortex to support evidence and control narratives around GDPR, NIS2, ISO 27001, and ISO 42001 while keeping shared responsibility explicit.",
   },
   {
-    title: "Air-gapped ready",
+    title: "Fit both cloud and restricted environments",
     description:
-      "Complete offline deployment for restricted environments. Zero network traffic. Built-in AI model. Everything in one package.",
+      "Run a cloud dashboard for standard enterprise rollout or deploy air-gapped for restricted environments that still need governed AI development.",
   },
 ];
 
@@ -63,11 +63,12 @@ export function Features() {
             Features
           </p>
           <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-4">
-            Central control, local execution
+            Why teams buy Cortex Enterprise
           </h2>
           <p className="text-zinc-400 max-w-xl mx-auto">
-            Developers keep local execution and high-signal context while the
-            enterprise layer adds policy, workflow, audit, and reporting.
+            This is not just a local coding tool. It is a control plane for
+            rolling out AI development with clearer accountability, stronger
+            evidence, and less friction between engineering and governance.
           </p>
         </motion.div>
 

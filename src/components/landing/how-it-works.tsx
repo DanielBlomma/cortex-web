@@ -6,35 +6,24 @@ import { useRef } from "react";
 const steps = [
   {
     step: "01",
-    title: "Install locally",
+    title: "Start with a controlled pilot",
     description:
-      "Each developer installs Cortex. It indexes your codebase and runs entirely on their machine. No code leaves the building.",
-    code: null,
+      "Onboard one team or one business-critical repo first. Developers keep working locally, while leadership gets visibility into adoption, savings, and risk before broad rollout.",
+    supporting: "Good for proving value before procurement expands scope.",
   },
   {
     step: "02",
-    title: "Connect to your dashboard",
+    title: "Set guardrails once",
     description:
-      "Point the local instance at your dashboard with an API key. Rules sync down, usage stats flow up. Source code stays local.",
-    code: `# .context/enterprise.yaml
-enterprise:
-  endpoint: https://your-portal.com
-  api_key: ctx_7kR4mNpQ2xYz...
-
-telemetry:
-  endpoint: https://your-portal.com/api/v1/telemetry/push
-  api_key: ctx_7kR4mNpQ2xYz...
-
-policy:
-  endpoint: https://your-portal.com/api/v1/policies/sync
-  api_key: ctx_7kR4mNpQ2xYz...`,
+      "Publish policy, workflow expectations, and review controls centrally. Cortex keeps those controls consistent across repos and AI tools instead of relying on every team to configure them correctly.",
+    supporting: "One enterprise policy layer, many developer workflows.",
   },
   {
     step: "03",
-    title: "Run the governed workflow",
+    title: "Show the evidence",
     description:
-      "Teams plan, review, implement, iterate, and approve through Cortex. The dashboard tracks policy health, evidence, and rollout readiness across the organization.",
-    code: null,
+      "When security, audit, or procurement asks how AI is governed, Cortex gives you telemetry, reviews, workflow snapshots, audit trails, and repo-level violations in one place.",
+    supporting: "The conversation shifts from promises to evidence.",
   },
 ];
 
@@ -54,9 +43,14 @@ export function HowItWorks() {
           <p className="text-xs uppercase tracking-widest text-zinc-500 mb-4">
             How it works
           </p>
-          <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
-            Three steps to governed AI
+          <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-4">
+            A faster path from AI experimentation to approved rollout
           </h2>
+          <p className="text-zinc-400 max-w-2xl mx-auto">
+            The public site should answer a buyer&apos;s question quickly:
+            how do we adopt AI coding at speed without creating a governance
+            gap?
+          </p>
         </motion.div>
 
         <motion.div
@@ -78,11 +72,9 @@ export function HowItWorks() {
                 {step.description}
               </p>
 
-              {step.code && (
-                <div className="rounded-md bg-[#0a0a0f] border border-zinc-800 p-3 font-mono text-xs text-zinc-500 overflow-x-auto">
-                  <pre className="whitespace-pre">{step.code}</pre>
-                </div>
-              )}
+              <p className="text-xs uppercase tracking-[0.16em] text-zinc-600">
+                {step.supporting}
+              </p>
             </div>
           ))}
         </motion.div>

@@ -4,18 +4,41 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 
 const terminalLines = [
-  { prompt: true, text: "cortex status" },
+  { prompt: true, text: "cortex enterprise summary" },
   {
     prompt: false,
-    text: "License:    Acme Corp (cloud, expires 2027-04-03)",
+    text: "Pilot:           42 developers across 9 repos",
   },
-  { prompt: false, text: "Repos:      12 / 50 indexed" },
-  { prompt: false, text: "Rules:      8 org policies synced" },
-  { prompt: false, text: "Telemetry:  last push 3m ago" },
+  { prompt: false, text: "Coverage:        100% policy sync on managed hosts" },
+  { prompt: false, text: "Evidence:        audit, reviews, violations, workflow" },
+  { prompt: false, text: "Compliance:      GDPR, NIS2, ISO 27001, ISO 42001" },
   { prompt: false, text: "" },
-  { prompt: true, text: "cortex analytics" },
-  { prompt: false, text: "Today:  142 searches, ~45k tokens saved" },
-  { prompt: false, text: "Week:   891 searches, ~312k tokens saved" },
+  { prompt: true, text: "cortex enterprise roi" },
+  { prompt: false, text: "Usage:           891 governed AI searches this week" },
+  { prompt: false, text: "Efficiency:      ~312k tokens saved with local context" },
+  { prompt: false, text: "Status:          rollout ready for security review" },
+];
+
+const buyerSignals = [
+  "Local execution by default",
+  "Central policy control",
+  "Audit-ready evidence",
+  "Air-gapped deployment option",
+];
+
+const proofCards = [
+  {
+    label: "For security leaders",
+    value: "Keep code local while proving which controls ran, where, and when.",
+  },
+  {
+    label: "For engineering leadership",
+    value: "Show adoption, token savings, review outcomes, and repo-level rollout health.",
+  },
+  {
+    label: "For compliance teams",
+    value: "Support evidence collection for GDPR, NIS2, ISO 27001, and ISO 42001.",
+  },
 ];
 
 function TerminalWindow() {
@@ -55,7 +78,10 @@ function TerminalWindow() {
 
 export function Hero() {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 pb-16 overflow-hidden">
@@ -73,56 +99,85 @@ export function Hero() {
       )}
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black" />
 
-      <div className="relative max-w-3xl mx-auto text-center">
+      <div
+        id="why-cortex"
+        className="relative max-w-6xl mx-auto grid gap-16 items-center lg:grid-cols-[1.1fr_0.9fr]"
+      >
+        <div className="text-center lg:text-left">
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
           className="text-xs uppercase tracking-widest text-zinc-500 mb-8"
         >
-          Open Source &middot; MIT Licensed
+          Open source local runtime, enterprise control plane
         </motion.p>
 
         <motion.h1
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="text-5xl md:text-7xl font-bold tracking-tighter leading-[1.05] text-white mb-6"
+          className="text-5xl md:text-7xl font-bold tracking-tighter leading-[1.02] text-white mb-6"
         >
-          Know what your AI tools are doing
+          Roll out AI coding assistants without losing control
         </motion.h1>
 
         <motion.p
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.15 }}
-          className="text-lg text-zinc-400 max-w-2xl mx-auto mb-4 leading-relaxed"
+          className="text-lg text-zinc-400 max-w-2xl mx-auto lg:mx-0 mb-5 leading-relaxed"
         >
-          Your developers use AI coding assistants every day. Cortex gives you
-          control over what they see, measures what they save, and proves to
-          auditors what they did.
+          Cortex Enterprise gives security, platform, and engineering leaders
+          one place to govern AI development, prove ROI, and show audit-ready
+          evidence while developers keep working locally in the tools they
+          already use.
         </motion.p>
 
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="text-sm text-zinc-500 mb-12"
+          className="text-sm text-zinc-500 mb-8 max-w-2xl mx-auto lg:mx-0"
         >
-          Source code never leaves the machine.
+          Built to support evidence and control expectations around GDPR, NIS2,
+          ISO 27001, and ISO 42001 without forcing your source code into the
+          cloud.
         </motion.p>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.22 }}
+          className="flex flex-wrap items-center justify-center lg:justify-start gap-3 mb-12"
+        >
+          {buyerSignals.map((signal) => (
+            <span
+              key={signal}
+              className="rounded-full border border-zinc-800 bg-zinc-950/80 px-3 py-1.5 text-xs text-zinc-300"
+            >
+              {signal}
+            </span>
+          ))}
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20"
+          className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-10"
         >
           <a
-            href="mailto:daniel.blomma@gmail.com?subject=Request%20Invite"
+            href="mailto:daniel.blomma@gmail.com?subject=Book%20Cortex%20Enterprise%20Intro"
             className="px-6 py-3 rounded-full bg-white text-black font-medium hover:bg-zinc-200 transition-colors text-sm"
           >
-            Request Invite
+            Book Intro
+          </a>
+          <a
+            href="#pricing"
+            className="px-6 py-3 rounded-full border border-zinc-700 text-zinc-300 hover:border-zinc-500 transition-colors text-sm font-medium"
+          >
+            See Pricing
           </a>
           <a
             href="https://github.com/DanielBlomma/cortex"
@@ -130,14 +185,37 @@ export function Hero() {
             rel="noopener noreferrer"
             className="px-6 py-3 rounded-full border border-zinc-700 text-zinc-300 hover:border-zinc-500 transition-colors text-sm font-medium"
           >
-            GitHub — MIT License
+            View Open Source
           </a>
         </motion.div>
 
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.28 }}
+          className="grid gap-3 sm:grid-cols-3"
+        >
+          {proofCards.map((card) => (
+            <div
+              key={card.label}
+              className="rounded-2xl border border-zinc-800 bg-zinc-950/80 p-5 text-left"
+            >
+              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500 mb-3">
+                {card.label}
+              </p>
+              <p className="text-sm leading-relaxed text-zinc-300">
+                {card.value}
+              </p>
+            </div>
+          ))}
+        </motion.div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.3 }}
+          className="relative"
         >
           <TerminalWindow />
         </motion.div>

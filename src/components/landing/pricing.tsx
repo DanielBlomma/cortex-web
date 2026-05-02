@@ -26,15 +26,15 @@ const plans = [
     ],
   },
   {
-    name: "Cloud",
+    name: "Enterprise",
     price: "$30",
     period: "per developer / month",
     monthly: null,
     description:
-      "Governed AI control plane for teams. Policies, workflow evidence, audit, and compliance reporting.",
-    cta: "Start Free Trial",
-    ctaHref: "/sign-up",
-    ctaExternal: false,
+      "The governed control plane for teams that need policy, evidence, and rollout confidence around AI development.",
+    cta: "Book Intro",
+    ctaHref: "mailto:daniel.blomma@gmail.com?subject=Cortex%20Enterprise%20Intro",
+    ctaExternal: true,
     highlighted: true,
     features: [
       "Everything in Community",
@@ -48,6 +48,7 @@ const plans = [
       "SSO / SAML",
       "Audit trail export",
       "Priority support",
+      "Pilot rollout guidance",
     ],
   },
   {
@@ -56,7 +57,7 @@ const plans = [
     period: "per year",
     monthly: "Scales with developers and projects — contact sales",
     description:
-      "Offline governance for restricted environments. Local policies, local evidence, zero network traffic.",
+      "Offline governance for restricted environments that still need evidence, control, and rollout discipline.",
     cta: "Contact Sales",
     ctaHref: "mailto:daniel.blomma@gmail.com?subject=Air-Gapped%20Inquiry",
     ctaExternal: true,
@@ -151,12 +152,12 @@ export function Pricing() {
             Pricing
           </p>
           <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-4">
-            Start free, scale with your team
+            Buy the rollout model that fits your risk profile
           </h2>
           <p className="text-zinc-400 max-w-lg mx-auto">
-            Start with local context retrieval, then add governed workflow,
-            policy control, and audit evidence when your team needs enterprise
-            rollout.
+            Start with the open source local runtime, then move to
+            `Cortex Enterprise` when you need policy control, audit evidence,
+            and a buyer-friendly story for security and compliance.
           </p>
         </motion.div>
 
